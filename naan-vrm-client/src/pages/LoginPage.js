@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import axios from 'axios';
+import api from '../api/axiosConfig';
 import { useAuth } from '../context/AuthContext'; 
 import { useNavigate } from 'react-router-dom';
 import Button from '../components/shared/Button';
@@ -16,7 +16,7 @@ function LoginPage() {
     e.preventDefault();
     setError(''); 
     try {
-      const response = await axios.post('http://localhost:5000/api/users/login', {
+      const response = await api.post('/users/login', {
         email,
         password,
       });
