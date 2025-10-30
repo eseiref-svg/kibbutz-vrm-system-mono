@@ -5,7 +5,9 @@
   "main": "db.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js"
+    "start": "node server.js",
+    "restore": "node restore-db.js",
+    "init": "node restore-db.js && node server.js"
   },
   "keywords": [],
   "author": "",
