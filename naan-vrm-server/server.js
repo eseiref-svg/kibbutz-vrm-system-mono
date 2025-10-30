@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 const express = require('express');
 const db = require('./db');
 const cors = require('cors');
@@ -11,10 +13,31 @@ const paymentMonitorService = require('./services/paymentMonitorService');
 const alertService = require('./services/alertService');
 
 const app = express();
-const port = 5000;
+const port = process.env.PORT || 5000;
 
 app.use(cors());
 app.use(express.json());
+
+// --- Health Check Endpoint (Must be BEFORE auth middleware) ---
+app.get('/health', async (req, res) => {
+  try {
+    // Try to query database to ensure it's working
+    await db.query('SELECT 1');
+    res.status(200).json({ 
+      status: 'ok', 
+      message: 'Server is running and database connected', 
+      timestamp: new Date().toISOString() 
+    });
+  } catch (err) {
+    console.error('Health check DB error:', err.message);
+    res.status(503).json({ 
+      status: 'error', 
+      message: 'Database connection failed', 
+      error: err.message,
+      timestamp: new Date().toISOString() 
+    });
+  }
+});
 
 // --- Public Routes ---
 // These routes do not require authentication
@@ -53,7 +76,7 @@ app.post('/api/users/login', async (req, res) => {
     const payload = { user: { id: user.user_id, role_id: user.permissions_id } };
     jwt.sign(
       payload,
-      'Zaq1Xsw2', // In production, use an environment variable!
+      process.env.JWT_SECRET,
       { expiresIn: '1h' },
       (err, token) => {
         if (err) throw err;
