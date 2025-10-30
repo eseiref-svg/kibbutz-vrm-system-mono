@@ -15,7 +15,13 @@ const alertService = require('./services/alertService');
 const app = express();
 const port = process.env.PORT || 5000;
 
-app.use(cors());
+// CORS Configuration - restrict to frontend domain
+const corsOptions = {
+  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  credentials: true,
+  optionsSuccessStatus: 200
+};
+app.use(cors(corsOptions));
 app.use(express.json());
 
 // --- Health Check Endpoint (Must be BEFORE auth middleware) ---
@@ -116,7 +122,11 @@ app.post('/api/users/reset-password', async (req, res) => {
 });
 
 
-// --- Public Routes (no auth required) ---
+// --- Protected Routes ---
+// ALL routes below this line will use the 'auth' middleware to ensure the user is logged in
+app.use(auth);
+
+// קבלת כל הענפים
 app.get('/api/branches', async (req, res) => {
   try {
     const result = await db.query('SELECT branch_id, name FROM branch ORDER BY name');
@@ -172,10 +182,6 @@ app.get('/api/branches/active', async (req, res) => {
     res.status(500).send('Server Error');
   }
 });
-
-// --- Protected Routes ---
-// ALL routes below this line will use the 'auth' middleware to ensure the user is logged in
-app.use(auth);
 
 app.get('/api/supplier-fields', async (req, res) => {
     try {
