@@ -500,7 +500,9 @@ app.post('/api/users/:id/request-password-reset', async (req, res) => {
             return res.status(404).json({ message: "User not found" });
         }
         
-        const resetUrl = `http://localhost:3000/reset-password/${resetToken}`;
+        // Dynamic Frontend URL based on environment
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+        const resetUrl = `${frontendUrl}/reset-password/${resetToken}`;
         console.log(`Password reset link for ${updateUser.rows[0].email}: ${resetUrl}`);
         
         res.json({ message: 'Reset link generated successfully.', resetUrl });

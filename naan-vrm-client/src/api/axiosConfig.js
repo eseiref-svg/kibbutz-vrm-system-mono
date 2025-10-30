@@ -1,9 +1,5 @@
 import axios from 'axios';
 
-// Debug: Print environment variable
-console.log('🔍 REACT_APP_API_URL:', process.env.REACT_APP_API_URL);
-console.log('🌐 Using baseURL:', process.env.REACT_APP_API_URL || 'http://localhost:5000/api');
-
 // 1. ניצור "מופע" מרכזי של axios עם כתובת השרת שלנו
 const api = axios.create({
   baseURL: process.env.REACT_APP_API_URL || 'http://localhost:5000/api'
