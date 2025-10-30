@@ -30,8 +30,8 @@ function ProtectedRoute({ children }) {
 function Header() {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
-    // הנחה שתפקיד גזבר הוא בעל ID 2
-    const isTreasurer = user?.role_id === 2; 
+    // תפקידים: 1=ADMIN, 2=גזבר - שניהם מקבלים גישה מלאה
+    const isTreasurer = user?.role_id === 1 || user?.role_id === 2; 
 
     const handleLogout = () => {
         logout();
@@ -71,7 +71,8 @@ function Header() {
 
 function AppRoutes() {
     const { user } = useAuth();
-    const isTreasurer = user?.role_id === 2;
+    // תפקידים: 1=ADMIN, 2=גזבר - שניהם מקבלים גישה מלאה
+    const isTreasurer = user?.role_id === 1 || user?.role_id === 2;
 
     return (
         <Routes>
