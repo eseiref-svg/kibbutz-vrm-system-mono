@@ -1,8 +1,11 @@
 import axios from 'axios';
 
 // 1. ניצור "מופע" מרכזי של axios עם כתובת השרת שלנו
+const baseURL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+console.log('🔗 API Base URL:', baseURL);
+
 const api = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:5000/api'
+  baseURL: baseURL
 });
 
 // 2. זהו "מחזיק המפתחות". הוא יפעל אוטומטית לפני כל בקשה

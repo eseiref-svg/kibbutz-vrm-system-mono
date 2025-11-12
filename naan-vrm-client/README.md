@@ -1,70 +1,111 @@
-# Getting Started with Create React App
+# naan-vrm-client
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+Frontend React application for the VRM System - חלק מה-monorepo `kibbutz-vrm-system-mono`
 
-## Available Scripts
+## 📍 מיקום
 
-In the project directory, you can run:
+הקליינט חייב לרוץ מתוך תיקייה זו: `naan-vrm-client/`
+
+## 🚀 הפעלת הקליינט
+
+### התקנת dependencies
+```bash
+cd naan-vrm-client
+npm install
+```
+
+### הגדרת משתני סביבה
+
+צור קובץ `.env` בתיקיית `naan-vrm-client/`:
+
+```env
+REACT_APP_API_URL=http://localhost:5000/api
+```
+
+**חשוב**: עבור Production (Vercel), משתנה הסביבה `REACT_APP_API_URL` מוגדר ב-Vercel Dashboard ולא בקובץ `.env`.
+
+### הפעלת הקליינט
+
+```bash
+npm start
+```
+
+האפליקציה תרוץ על: `http://localhost:3000`
+
+## 🔗 חיבור לשרת (Backend)
+
+הקליינט מתחבר לשרת דרך:
+- **Development**: `http://localhost:5000/api` (מוגדר ב-`.env`)
+- **Production**: כתובת השרת ב-Vercel Dashboard
+
+הקובץ `src/api/axiosConfig.js` מגדיר את חיבור ה-axios ומטפל בהזרקת ה-token אוטומטית לכל בקשה.
+
+## ✅ בדיקת תקינות
+
+לאחר הפעלת הקליינט:
+1. ודא שהשרת רץ על `http://localhost:5000`
+2. פתח את הדפדפן ב-`http://localhost:3000`
+3. נסה להתחבר עם:
+   - Email: `admin@naan.com`
+   - Password: `111222333`
+
+## 📂 מבנה התיקייה
+
+```
+naan-vrm-client/
+├── src/
+│   ├── api/
+│   │   └── axiosConfig.js      # תצורת axios וחיבור לשרת
+│   ├── components/             # קומפוננטות React
+│   ├── context/                # React Context (Auth)
+│   ├── pages/                  # דפי האפליקציה
+│   ├── App.js                  # קומפוננטה ראשית
+│   └── index.js                # נקודת כניסה
+├── public/                     # קבצים סטטיים
+├── package.json                # הגדרות הפרויקט
+└── .env                        # משתני סביבה (לא בקוד!)
+```
+
+## 🎨 טכנולוגיות
+
+- **React 18.2.0** - ספריית UI
+- **React Router** - ניהול ניווט
+- **Material-UI (MUI)** - ספריית UI components
+- **Axios** - בקשות HTTP
+- **Chart.js** - גרפים וויזואליזציות
+- **Tailwind CSS** - עיצוב
+
+## ⚠️ חשוב!
+
+- הקליינט **חייב** לרוץ מתוך תיקיית `naan-vrm-client/`
+- קובץ ה-`.env` חייב להיות בתיקיית `naan-vrm-client/`
+- אל תעלה את קובץ ה-`.env` ל-git!
+- ודא שהשרת רץ לפני הפעלת הקליינט
+
+## 📦 בנייה ל-Production
+
+```bash
+npm run build
+```
+
+זה יוצר תיקיית `build/` עם הקבצים המוכנים לפריסה ב-Vercel.
+
+## 🧪 הרצת בדיקות
+
+```bash
+npm test
+```
+
+## 📝 Available Scripts
 
 ### `npm start`
-
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
-
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+Runs the app in development mode at `http://localhost:3000`
 
 ### `npm test`
-
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+Launches the test runner in interactive watch mode
 
 ### `npm run build`
-
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
-
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
-
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+Builds the app for production to the `build` folder
 
 ### `npm run eject`
-
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
-
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
-
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
-
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+**⚠️ One-way operation!** Ejects from Create React App (not recommended)

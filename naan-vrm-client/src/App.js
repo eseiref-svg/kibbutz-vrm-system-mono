@@ -1,10 +1,12 @@
 import React from 'react';
 import { Routes, Route, Navigate, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
+import { NotificationProvider } from './context/NotificationContext';
 
 // Import all page components
 import DashboardPage from './pages/DashboardPage';
 import SuppliersPage from './pages/SuppliersPage';
+import ClientsPage from './pages/ClientsPage';
 import BranchPortalPage from './pages/BranchPortalPage';
 import LoginPage from './pages/LoginPage';
 import ReportsPage from './pages/ReportsPage';
@@ -49,6 +51,7 @@ function Header() {
                                     <Link to="/" className="text-blue-800 hover:text-blue-600">לוח מחוונים</Link>
                                     <Link to="/payments" className="text-blue-800 hover:text-blue-600">מעקב תשלומים</Link>
                                     <Link to="/suppliers" className="text-blue-800 hover:text-blue-600">ניהול ספקים</Link>
+                                    <Link to="/clients" className="text-blue-800 hover:text-blue-600">ניהול לקוחות</Link>
                                     <Link to="/reports" className="text-blue-800 hover:text-blue-600">דוחות</Link>
                                     <Link to="/tag-management" className="text-blue-800 hover:text-blue-600">ניהול תגים</Link>
                                     <Link to="/user-management" className="text-blue-800 hover:text-blue-600">ניהול משתמשים</Link>
@@ -77,8 +80,9 @@ function AppRoutes() {
             {isTreasurer ? (
                 <>
                     <Route path="/" element={<DashboardPage />} />
-                        <Route path="/payments" element={<PaymentsDashboardPage />} />
+                    <Route path="/payments" element={<PaymentsDashboardPage />} />
                     <Route path="/suppliers" element={<SuppliersPage />} />
+                    <Route path="/clients" element={<ClientsPage />} />
                     <Route path="/reports" element={<ReportsPage />} />
                     <Route path="/tag-management" element={<TagManagementPage />} />
                     <Route path="/user-management" element={<UserManagementPage />} />
@@ -95,26 +99,28 @@ function AppRoutes() {
 // רכיב האפליקציה הראשי שמארגן את כלל המבנה
 function App() {
   return (
-    <Routes>
-      {/* נתיבים ציבוריים הזמינים לכולם */}
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
-      
-      {/* כל שאר הנתיבים ("/*") מוגנים */}
-      <Route 
-        path="/*" 
-        element={
-          <ProtectedRoute>
-            <div className="bg-gray-100 min-h-screen">
-              <Header />
-              <main className="container mx-auto p-6 mt-4">
-                <AppRoutes />
-              </main>
-            </div>
-          </ProtectedRoute>
-        } 
-      />
-    </Routes>
+    <NotificationProvider>
+      <Routes>
+        {/* נתיבים ציבוריים הזמינים לכולם */}
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
+        
+        {/* כל שאר הנתיבים ("/*") מוגנים */}
+        <Route 
+          path="/*" 
+          element={
+            <ProtectedRoute>
+              <div className="bg-gray-100 min-h-screen">
+                <Header />
+                <main className="container mx-auto p-6 mt-4">
+                  <AppRoutes />
+                </main>
+              </div>
+            </ProtectedRoute>
+          } 
+        />
+      </Routes>
+    </NotificationProvider>
   );
 }
 

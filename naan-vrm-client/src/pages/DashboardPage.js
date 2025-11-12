@@ -5,33 +5,43 @@ import InfoCard from '../components/dashboard/InfoCard';
 import CashFlowChart from '../components/dashboard/CashFlowChart';
 import ExpensesChart from '../components/dashboard/ExpensesChart';
 import SupplierRequestsWidget from '../components/dashboard/SupplierRequestsWidget';
+import ClientRequestsWidget from '../components/dashboard/ClientRequestsWidget';
+import SalesApprovalWidget from '../components/dashboard/SalesApprovalWidget';
 import AddSupplierForm from '../components/AddSupplierForm';
+import ApproveClientModal from '../components/dashboard/ApproveClientModal';
 import Button from '../components/shared/Button';
 import Select from '../components/shared/Select';
+import { useNotifications } from '../context/NotificationContext';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 
 function DashboardPage() {
+  const { triggerRefresh } = useNotifications();
   const [summaryData, setSummaryData] = useState(null);
   const [requests, setRequests] = useState([]);
+  const [clientRequests, setClientRequests] = useState([]);
   const [supplierFields, setSupplierFields] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [period, setPeriod] = useState('monthly');
   const [showAddSupplierForm, setShowAddSupplierForm] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState(null);
+  const [showApproveClientModal, setShowApproveClientModal] = useState(false);
+  const [selectedClientRequest, setSelectedClientRequest] = useState(null);
 
   const fetchData = useCallback(() => {
     setLoading(true);
     setError('');
     const summaryPromise = api.get('/dashboard/summary', { params: { period } });
     const requestsPromise = api.get('/supplier-requests/pending');
+    const clientRequestsPromise = api.get('/client-requests', { params: { status: 'pending' } });
     const fieldsPromise = api.get('/supplier-fields');
 
-    Promise.all([summaryPromise, requestsPromise, fieldsPromise])
-      .then(([summaryRes, requestsRes, fieldsRes]) => {
+    Promise.all([summaryPromise, requestsPromise, clientRequestsPromise, fieldsPromise])
+      .then(([summaryRes, requestsRes, clientRequestsRes, fieldsRes]) => {
         setSummaryData(summaryRes.data);
         setRequests(requestsRes.data);
+        setClientRequests(clientRequestsRes.data || []);
         setSupplierFields(fieldsRes.data);
       })
       .catch(err => {
@@ -49,6 +59,35 @@ function DashboardPage() {
     setRequests(prevRequests => prevRequests.filter(req => req.request_id !== requestId));
   };
 
+  const handleClientRequestUpdate = (requestId) => {
+    setClientRequests(prevRequests => prevRequests.filter(req => req.request_id !== requestId));
+  };
+
+  const handleApproveClientRequest = (request) => {
+    setSelectedClientRequest(request);
+    setShowApproveClientModal(true);
+  };
+
+  const handleConfirmApproveClient = async (requestId, approvalData) => {
+    try {
+      await api.put(`/client-requests/${requestId}/approve`, approvalData);
+      handleClientRequestUpdate(requestId);
+      triggerRefresh(); // Refresh notification bell immediately
+      alert('✅ הבקשה אושרה בהצלחה! הלקוח נוצר במערכת.');
+      setShowApproveClientModal(false);
+      setSelectedClientRequest(null);
+      fetchData(); // Refresh all data
+    } catch (error) {
+      console.error('Failed to approve client request:', error);
+      throw error; // Re-throw to be handled by the modal
+    }
+  };
+
+  const handleCloseApproveClientModal = () => {
+    setShowApproveClientModal(false);
+    setSelectedClientRequest(null);
+  };
+
   const handleApproveRequest = (request) => {
     setSelectedRequest(request);
     setShowAddSupplierForm(true);
@@ -60,6 +99,7 @@ function DashboardPage() {
       await api.put(`/supplier-requests/${selectedRequest.request_id}`, { status: 'approved' });
       // הסרת הבקשה מהרשימה
       setRequests(prevRequests => prevRequests.filter(req => req.request_id !== selectedRequest.request_id));
+      triggerRefresh(); // Refresh notification bell immediately
       setShowAddSupplierForm(false);
       setSelectedRequest(null);
     } catch (error) {
@@ -151,6 +191,14 @@ function DashboardPage() {
               onUpdateRequest={handleRequestUpdate}
               onApproveRequest={handleApproveRequest}
             />
+
+            <ClientRequestsWidget 
+              requests={clientRequests} 
+              onUpdateRequest={handleClientRequestUpdate}
+              onApproveRequest={handleApproveClientRequest}
+            />
+
+            <SalesApprovalWidget />
         
             <AddSupplierForm
               open={showAddSupplierForm}
@@ -158,6 +206,13 @@ function DashboardPage() {
               onSupplierAdded={handleSupplierAdded}
               supplierFields={supplierFields}
               initialData={selectedRequest}
+            />
+
+            <ApproveClientModal
+              isOpen={showApproveClientModal}
+              onClose={handleCloseApproveClientModal}
+              clientRequest={selectedClientRequest}
+              onApprove={handleConfirmApproveClient}
             />
         </div>
       )}

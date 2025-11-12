@@ -12,22 +12,32 @@ const ADMIN_FIRST_NAME = 'Admin';
 const ADMIN_SURNAME = 'System';
 const ADMIN_PHONE = '050-0000000';
 
-// Use DATABASE_URL from environment (Railway)
-const DATABASE_URL = process.env.DATABASE_URL;
+// Configuration: Support both PRODUCTION (Railway) and DEVELOPMENT (local)
+let clientConfig;
 
-if (!DATABASE_URL) {
-  console.error('❌ DATABASE_URL not found!');
-  console.error('Make sure to set DATABASE_URL environment variable');
-  process.exit(1);
+if (process.env.DATABASE_URL) {
+  // PRODUCTION - Railway
+  console.log('🟢 Using PRODUCTION database (Railway)');
+  clientConfig = {
+    connectionString: process.env.DATABASE_URL,
+    ssl: {
+      rejectUnauthorized: false
+    }
+  };
+} else {
+  // DEVELOPMENT - Local PostgreSQL
+  console.log('🔵 Using DEVELOPMENT database (Local)');
+  clientConfig = {
+    user: process.env.DB_USER,
+    host: process.env.DB_HOST,
+    database: process.env.DB_NAME,
+    password: process.env.DB_PASSWORD,
+    port: process.env.DB_PORT,
+  };
 }
 
 async function createAdmin() {
-  const client = new Client({
-    connectionString: DATABASE_URL,
-    ssl: DATABASE_URL.includes('railway') ? {
-      rejectUnauthorized: false
-    } : false
-  });
+  const client = new Client(clientConfig);
 
   try {
     await client.connect();

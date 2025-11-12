@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api/axiosConfig'; // שימוש במחזיק המפתחות האוטומטי
+import { useNotifications } from '../../context/NotificationContext';
 
 function NotificationsBell() {
   const navigate = useNavigate();
   const [count, setCount] = useState(0);
+  const { refreshTrigger } = useNotifications();
 
   useEffect(() => {
     const fetchCount = () => {
@@ -23,11 +25,11 @@ function NotificationsBell() {
 
     fetchCount();
     // Check for new notifications periodically
-    const interval = setInterval(fetchCount, 30000); // e.g., every 30 seconds
+    const interval = setInterval(fetchCount, 5000); // every 5 seconds for faster updates
 
     // Clean up the interval when the component is unmounted
     return () => clearInterval(interval);
-  }, []);
+  }, [refreshTrigger]); // Refresh immediately when refreshTrigger changes
 
   const handleClick = () => {
     if (count > 0) {
