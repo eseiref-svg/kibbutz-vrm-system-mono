@@ -5,7 +5,7 @@ import BranchClientSearch from './BranchClientSearch';
 import ClientRequestForm from './ClientRequestForm';
 import Button from '../shared/Button';
 
-function BranchClientManagement({ branchId }) {
+function BranchClientManagement({ branchId, onSaleCreated }) {
   const [clients, setClients] = useState([]);
   const [allClients, setAllClients] = useState([]); // Store all clients for search
   const [selectedClient, setSelectedClient] = useState(null);
@@ -78,6 +78,9 @@ function BranchClientManagement({ branchId }) {
     setSelectedClient(null);
     alert('דרישת תשלום נוצרה בהצלחה!');
     fetchClients(); // Refresh client list
+    if (onSaleCreated) {
+      onSaleCreated(); // Notify parent to refresh transactions widget
+    }
   };
 
   const handleRequestSubmitted = () => {
@@ -161,17 +164,30 @@ function BranchClientManagement({ branchId }) {
                     setShowCreateSaleForm(true);
                   }}
                 >
-                  <div className="flex justify-between items-start mb-2">
-                    <h4 className="font-bold text-blue-700">{client.name}</h4>
-                    <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                      #{client.client_id}
+                  <div className="flex justify-between items-start mb-3">
+                    <h4 className="font-bold text-blue-700 text-lg">{client.name}</h4>
+                    <span className="text-xs text-gray-600 bg-blue-100 px-2 py-1 rounded font-semibold">
+                      #{client.client_number || client.client_id}
                     </span>
                   </div>
-                  <p className="text-sm text-gray-600">איש קשר: {client.poc_name}</p>
-                  {client.poc_phone && (
-                    <p className="text-sm text-gray-600">טלפון: {client.poc_phone}</p>
-                  )}
-                  <button className="mt-3 bg-green-500 text-white px-4 py-1 rounded-lg text-sm hover:bg-green-600">
+                  
+                  <div className="space-y-1 mb-3">
+                    <p className="text-sm text-gray-700">
+                      <span className="font-semibold">איש קשר:</span> {client.poc_name || 'לא צוין'}
+                    </p>
+                    {client.poc_phone && (
+                      <p className="text-sm text-gray-700">
+                        <span className="font-semibold">טלפון:</span> {client.poc_phone}
+                      </p>
+                    )}
+                    {client.poc_email && (
+                      <p className="text-sm text-gray-700">
+                        <span className="font-semibold">אימייל:</span> {client.poc_email}
+                      </p>
+                    )}
+                  </div>
+                  
+                  <button className="mt-3 bg-green-500 text-white px-4 py-1 rounded-lg text-sm hover:bg-green-600 w-full">
                     + צור דרישת תשלום
                   </button>
                 </div>

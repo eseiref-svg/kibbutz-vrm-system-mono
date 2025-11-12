@@ -89,13 +89,13 @@ function UserManagementPage() {
   const validateForm = () => {
     const errors = {};
     
-    // אימות אימייל - רק אותיות אנגלית ופורמט תקין
+    // Email validation - English letters only and valid format
     const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
     if (!currentUser.email || !emailRegex.test(currentUser.email)) {
       errors.email = 'כתובת אימייל לא תקינה. יש להשתמש באותיות אנגלית בלבד';
     }
     
-    // אימות טלפון - בדיוק 10 ספרות (אחרי הסרת מקפים)
+    // Phone validation - exactly 10 digits (after removing hyphens)
     const phoneDigits = (currentUser.phone_no || '').replace(/-/g, '');
     if (!/^\d{10}$/.test(phoneDigits)) {
       errors.phone_no = 'מספר טלפון חייב להכיל בדיוק 10 ספרות';
@@ -105,7 +105,7 @@ function UserManagementPage() {
   };
 
   const handleSubmit = async () => {
-    // בדיקת validation
+    // Validation check
     const errors = validateForm();
     if (Object.keys(errors).length > 0) {
       setValidationErrors(errors);
@@ -115,7 +115,7 @@ function UserManagementPage() {
     setValidationErrors({});
     
     try {
-      // ניקוי מקפים ממספר הטלפון לפני שליחה
+      // Remove hyphens from phone number before sending
       const userData = {
         ...currentUser,
         phone_no: currentUser.phone_no.replace(/-/g, '')

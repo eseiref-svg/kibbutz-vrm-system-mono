@@ -47,11 +47,11 @@ const PaymentsDashboardPage = () => {
   const fetchPayments = async () => {
     try {
       const params = {
-        // הגבלה לחודש הנוכחי
+        // Limit to current month
         currentMonth: true
       };
       
-      // הוספת פילטרים
+      // Add filters
       if (filters.branchId && filters.branchId !== 'all') {
         params.branchId = filters.branchId;
       }
@@ -62,7 +62,7 @@ const PaymentsDashboardPage = () => {
         params.type = filters.type;
       }
 
-      // בחירת endpoint לפי טאב פעיל
+      // Choose endpoint based on active tab
       let endpoint = '/payments/all';
       if (activeTab === 'overdue') {
         endpoint = '/payments/overdue';
@@ -110,7 +110,7 @@ const PaymentsDashboardPage = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 p-6" dir="rtl">
-      {/* כותרת */}
+      {/* Header */}
       <div className="mb-6">
         <div className="flex items-center justify-between">
           <div>
@@ -135,13 +135,13 @@ const PaymentsDashboardPage = () => {
         </div>
       </div>
 
-      {/* כרטיסי סטטיסטיקה */}
+      {/* Statistics cards */}
       <PaymentStatsCards stats={stats} loading={loading && !stats} />
 
-      {/* סינונים */}
+      {/* Filters */}
       <PaymentFilters onFilterChange={handleFilterChange} />
 
-      {/* טאבים */}
+      {/* Tabs */}
       <div className="bg-white rounded-t-lg shadow">
         <div className="flex border-b border-gray-200">
           {tabs.map((tab) => (
@@ -169,7 +169,7 @@ const PaymentsDashboardPage = () => {
         </div>
       </div>
 
-      {/* טבלת תשלומים */}
+      {/* Payments table */}
       <div className="rounded-b-lg">
         <PaymentsTable 
           payments={payments} 
@@ -178,7 +178,7 @@ const PaymentsDashboardPage = () => {
         />
       </div>
 
-      {/* מידע נוסף */}
+      {/* Additional information */}
       <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
         <div className="text-sm text-blue-800">
           <p className="font-semibold mb-1">על מערכת מעקב התשלומים:</p>

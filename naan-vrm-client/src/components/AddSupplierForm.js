@@ -18,7 +18,7 @@ function AddSupplierForm({ open, onClose, onSupplierAdded, supplierFields, initi
     status: 'pending'
   });
 
-  // מילוי הטופס עם נתונים ראשוניים אם קיימים
+  // Fill form with initial data if available
   useEffect(() => {
     if (initialData && open) {
       setFormData({
@@ -33,7 +33,7 @@ function AddSupplierForm({ open, onClose, onSupplierAdded, supplierFields, initi
         status: 'pending'
       });
     } else if (!initialData && open) {
-      // איפוס הטופס אם אין נתונים ראשוניים
+      // Reset form if no initial data
       setFormData({
         supplier_id: '',
         name: '',

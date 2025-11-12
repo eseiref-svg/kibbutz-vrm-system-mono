@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import api from '../../api/axiosConfig'; // שימוש במחזיק המפתחות האוטומטי
+import api from '../../api/axiosConfig'; // Using automatic key holder
 import { useNotifications } from '../../context/NotificationContext';
 
 function NotificationsBell() {
@@ -10,7 +10,7 @@ function NotificationsBell() {
 
   useEffect(() => {
     const fetchCount = () => {
-      // הבקשה משתמשת עכשיו ב-api במקום ב-axios
+      // Request now uses api instead of axios
       api.get('/notifications/pending-requests-count')
         .then(response => {
           setCount(response.data.count);
@@ -34,7 +34,7 @@ function NotificationsBell() {
   const handleClick = () => {
     if (count > 0) {
       navigate('/');
-      // גלילה אוטומטית לווידג'ט הבקשות לאחר טעינת העמוד
+      // Auto-scroll to requests widget after page loads
       setTimeout(() => {
         const element = document.getElementById('supplier-requests-widget');
         element?.scrollIntoView({ behavior: 'smooth', block: 'start' });

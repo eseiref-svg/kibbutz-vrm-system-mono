@@ -1,24 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import api from '../../api/axiosConfig';
 
 function CreateSaleForm({ clientId, clientName, defaultBranchId, onSaleCreated, onCancel }) {
-  const [branches, setBranches] = useState([]);
   const [formData, setFormData] = useState({
     client_id: clientId,
-    branch_id: defaultBranchId || '',
+    branch_id: defaultBranchId,
     value: '',
     transaction_date: '',
     description: ''
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    // Fetch branches for dropdown
-    api.get('/branches')
-      .then(response => setBranches(response.data))
-      .catch(error => console.error('Error fetching branches:', error));
-  }, []);
+  
+  // Calculate VAT (18%) and total amount
+  const valueWithoutVat = parseFloat(formData.value) || 0;
+  const totalWithVat = valueWithoutVat * 1.18;
 
   const handleChange = (e) => {
     setFormData({
@@ -32,15 +28,14 @@ function CreateSaleForm({ clientId, clientName, defaultBranchId, onSaleCreated, 
     setError('');
     setLoading(true);
 
-    if (!formData.branch_id || !formData.value || !formData.transaction_date) {
-      setError('סכום ותאריך עסקה הם שדות חובה');
+    if (!formData.value || !formData.transaction_date) {
+      setError('סכום עסקה ותאריך עסקה הם שדות חובה');
       setLoading(false);
       return;
     }
 
     try {
       await api.post('/sales/request', formData);
-      alert('דרישת תשלום נשלחה לאישור הנהלת חשבונות!');
       onSaleCreated();
     } catch (err) {
       setError(err.response?.data?.message || 'שגיאה בשליחת דרישת התשלום');
@@ -57,39 +52,6 @@ function CreateSaleForm({ clientId, clientName, defaultBranchId, onSaleCreated, 
       <form onSubmit={handleSubmit}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-gray-700 font-semibold mb-2">ענף עסקי *</label>
-            <select
-              name="branch_id"
-              value={formData.branch_id}
-              onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              required
-              disabled={defaultBranchId}
-            >
-              <option value="">בחר ענף</option>
-              {branches.map(branch => (
-                <option key={branch.branch_id} value={branch.branch_id}>
-                  {branch.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-gray-700 font-semibold mb-2">סכום (₪) *</label>
-            <input
-              type="number"
-              name="value"
-              value={formData.value}
-              onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              required
-              min="0"
-              step="0.01"
-            />
-          </div>
-
-          <div>
             <label className="block text-gray-700 font-semibold mb-2">תאריך עסקה *</label>
             <input
               type="date"
@@ -99,6 +61,33 @@ function CreateSaleForm({ clientId, clientName, defaultBranchId, onSaleCreated, 
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
+          </div>
+
+          <div>
+            <label className="block text-gray-700 font-semibold mb-2">סכום העסקה (ללא מע״מ) *</label>
+            <input
+              type="number"
+              name="value"
+              value={formData.value}
+              onChange={handleChange}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+              min="0"
+              step="0.01"
+              placeholder="0.00"
+            />
+          </div>
+
+          <div>
+            <label className="block text-gray-700 font-semibold mb-2">סכום לתשלום (כולל מע״מ)</label>
+            <input
+              type="text"
+              value={totalWithVat.toFixed(2)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-700 font-bold"
+              readOnly
+              disabled
+            />
+            <p className="text-xs text-gray-600 mt-1">מחושב אוטומטית: סכום העסקה × 1.18</p>
           </div>
 
           <div className="md:col-span-2">

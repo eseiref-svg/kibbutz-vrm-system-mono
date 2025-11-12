@@ -4,6 +4,62 @@
 
 ---
 
+## 📦 Version 2.2.0 - Client Management & QA Improvements
+**Release Date:** 12/11/2025  
+**Type:** Feature Enhancement & Code Cleanup
+
+### 🎯 מה השתנה?
+
+#### 🆕 ווידג'טים חדשים בפורטל הסניפים
+- **RecentSalesWidget** - תצוגת דרישות תשלום אחרונות
+  - טבלה מסודרת עם סטטוסים ויזואליים
+  - תצוגת לקוח, מספר לקוח, סכום ותאריך עסקה
+  - סטטוסים: ממתין לאישור, אושר - ממתין לתשלום, שולם
+  
+- **TransactionsWidget** - ווידג'ט תנועות כספיות מתקדם
+  - תצוגה דו-כיוונית: תנועות נכנסות (לקבל) ויוצאות (לשלם)
+  - מיון דינמי לפי עמודות (תאריך, סכום, סטטוס)
+  - סינון לפי סטטוס
+  - רענון דינמי מה-parent component
+
+#### 📚 תיעוד QA מקיף
+- **QA_PLAN_CLIENT_MANAGEMENT.md** - תוכנית בדיקות לניהול לקוחות
+- **QA_PLAN_NEW_CLIENT_SALES_FLOW.md** - תוכנית בדיקות לזרימת מכירות לקוח חדש
+- **QA_PLAN_SALES_APPROVAL.md** - תוכנית בדיקות לאישור מכירות
+- **QA_TEST_PLAN_UPDATED.md** - תוכנית בדיקות מעודכנת
+- **TESTING_PLAN_FIXES.md** - תיקונים בתוכנית הבדיקות
+- **TESTING_SUMMARY.md** - סיכום בדיקות
+- **QUICK_TEST_GUIDE.md** - מדריך בדיקות מהיר
+- **CLIENT_PAYMENT_TERMS_MODULES.md** - תיעוד מודולי תנאי תשלום ללקוחות
+- **NOTIFICATIONS_IMPROVEMENTS.md** - שיפורי מערכת התראות
+- **FIX_SERVER_RESTART.md** - תיעוד תיקון הפעלה מחדש של השרת
+
+#### 🔧 שיפורים טכניים
+- שיפורי SalesApprovalWidget - תצוגה משופרת של אישורי מכירות
+- שיפורי CreateSaleForm - יצירת מכירות משופרת
+- שיפורי ClientRequestForm - טיפול טוב יותר בבקשות לקוחות
+- שיפורי BranchClientManagement - ניהול לקוחות סניף משופר
+- שיפורי NotificationsBell - התראות משופרות
+- שיפורי PaymentFilters - סינון תשלומים משופר
+- שיפורי TransactionDetailsModal - פרטי תנועה מפורטים יותר
+
+#### 🧹 ניקוי קוד
+- הסרת 30+ קבצי סקריפטים ישנים שלא בשימוש
+- הסרת קבצי migration ישנים
+- הסרת קבצי test ישנים
+- הוספת `run-full-qa-tests.js` - סקריפט בדיקות QA מלא
+
+#### 📊 סטטיסטיקות
+- **81 קבצים** שונו
+- **3,265 שורות** נוספו
+- **4,317 שורות** הוסרו
+- ניקוי נטו של **1,052 שורות** קוד
+
+### 🏷️ Tags
+- **v2.2.0** - יציב ומוכן לייצור
+
+---
+
 ## 📦 Version 2.1.0 - Monorepo Release
 **Release Date:** 27/10/2025  
 **Type:** Infrastructure Update
@@ -138,6 +194,7 @@ npm start  # במונורפו החדש
 
 | Version | Date | Type | Summary |
 |---------|------|------|---------|
+| **2.2.0** | 12/11/2025 | Feature Enhancement | Client management improvements, QA docs, code cleanup |
 | **2.1.0** | 27/10/2025 | Infrastructure | Monorepo migration |
 | **2.0.0** | 26/10/2025 | Major | Payment monitoring system |
 | **1.1.0** | 24/10/2025 | Feature | Notifications & enhancements |
@@ -169,6 +226,6 @@ npm start  # במונורפו החדש
 
 ---
 
-**Last Updated:** 27/10/2025  
+**Last Updated:** 12/11/2025  
 **Maintained by:** VRM Development Team
 

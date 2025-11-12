@@ -27,7 +27,7 @@ function NotificationsList() {
   const markAsRead = async (notificationId) => {
     try {
       await api.put(`/notifications/${notificationId}/read`);
-      // עדכון מקומי של הרשימה
+      // Local update of the list
       setNotifications(prev => 
         prev.map(notif => 
           notif.notification_id === notificationId 

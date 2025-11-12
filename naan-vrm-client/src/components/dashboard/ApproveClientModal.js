@@ -15,7 +15,7 @@ function ApproveClientModal({ isOpen, onClose, clientRequest, onApprove }) {
     street_name: '',
     house_no: '',
     zip_code: '',
-    payment_terms: 'current_50', // ברירת מחדל: שוטף 50+
+    payment_terms: 'current_50', // Default: current +50 days
     review_notes: ''
   });
   
@@ -118,24 +118,24 @@ function ApproveClientModal({ isOpen, onClose, clientRequest, onApprove }) {
           </div>
         )}
 
-        {/* מספר לקוח - חובה */}
+        {/* Client number - required */}
         <div className="bg-yellow-50 border border-yellow-200 p-4 rounded">
           <h4 className="font-semibold text-gray-800 mb-2">מספר לקוח *</h4>
           <Input
             name="client_number"
-            label="מספר לקוח (מזהה ייחודי) *"
+            label="מספר לקוח (מזהה עסקי ייחודי) *"
             value={formData.client_number}
             onChange={handleChange}
             error={errors.client_number}
-            placeholder="לדוגמה: C12345"
+            placeholder="לדוגמה: C12345 או 12345"
             required
           />
           <p className="text-sm text-gray-600 mt-1">
-            הזן מספר ייחודי ללקוח. מספר זה ישמש לזיהוי הלקוח במערכת.
+            הזן מספר ייחודי ללקוח. מספר זה ישמש לזיהוי הלקוח במערכת (בהמשך יימסר ע"י ERP חיצוני).
           </p>
         </div>
 
-        {/* תנאי תשלום - ברירת מחדל */}
+        {/* Payment terms - default */}
         <div className="bg-blue-50 border border-blue-200 p-4 rounded">
           <h4 className="font-semibold text-gray-800 mb-2">תנאי תשלום</h4>
           <Select
@@ -156,7 +156,7 @@ function ApproveClientModal({ isOpen, onClose, clientRequest, onApprove }) {
           </p>
         </div>
 
-        {/* פרטי הלקוח */}
+        {/* Client details */}
         <div className="space-y-4">
           <h4 className="font-semibold text-gray-800 border-b pb-2">פרטי הלקוח (ניתן לעריכה)</h4>
           
@@ -252,4 +252,5 @@ function ApproveClientModal({ isOpen, onClose, clientRequest, onApprove }) {
 }
 
 export default ApproveClientModal;
+
 

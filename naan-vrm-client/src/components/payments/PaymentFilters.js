@@ -58,7 +58,7 @@ const PaymentFilters = ({ onFilterChange }) => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* סינון לפי ענף */}
+        {/* Filter by branch */}
         <div>
           <Select
             label="ענף"
@@ -72,7 +72,7 @@ const PaymentFilters = ({ onFilterChange }) => {
           />
         </div>
 
-        {/* סינון לפי מצב תשלום */}
+        {/* Filter by payment status */}
         <div>
           <Select
             label="מצב תשלום"
@@ -90,7 +90,7 @@ const PaymentFilters = ({ onFilterChange }) => {
           />
         </div>
 
-        {/* סינון לפי סוג עסקה */}
+        {/* Filter by transaction type */}
         <div>
           <Select
             label="סוג עסקה"
@@ -106,7 +106,7 @@ const PaymentFilters = ({ onFilterChange }) => {
         </div>
       </div>
 
-      {/* אינדיקטור סינון פעיל */}
+      {/* Active filter indicator */}
       {(filters.branchId || filters.status !== 'all' || filters.type !== 'all') && (
         <div className="mt-4 flex items-center text-sm text-gray-600">
           <span>סינון פעיל</span>

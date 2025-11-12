@@ -22,7 +22,7 @@ import NotificationsBell from './components/layout/NotificationsBell';
 function ProtectedRoute({ children }) {
   const { user } = useAuth();
   if (!user) {
-    // אם המשתמש לא מחובר, הפנה אותו לעמוד הכניסה
+    // If user is not logged in, redirect to login page
     return <Navigate to="/login" replace />;
   }
   return children;
@@ -90,22 +90,22 @@ function AppRoutes() {
             ) : (
                 <Route path="/" element={<BranchPortalPage />} />
             )}
-            {/* הפניה של כל נתיב לא מוכר לעמוד הבית */}
+            {/* Redirect all unknown routes to home page */}
             <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
     );
 }
 
-// רכיב האפליקציה הראשי שמארגן את כלל המבנה
+// Main application component that organizes the entire structure
 function App() {
   return (
     <NotificationProvider>
       <Routes>
-        {/* נתיבים ציבוריים הזמינים לכולם */}
+        {/* Public routes available to everyone */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
         
-        {/* כל שאר הנתיבים ("/*") מוגנים */}
+        {/* All other routes ("/*") are protected */}
         <Route 
           path="/*" 
           element={

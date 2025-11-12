@@ -6,8 +6,8 @@ import Select from '../shared/Select';
 function BranchClientSearch({ query, setQuery, criteria, setCriteria, onSearch, onClear }) {
 
   const getPlaceholder = () => {
-    if (criteria === 'name') return 'הקלד שם לקוח...';
-    if (criteria === 'id') return 'הקלד מספר לקוח...';
+    if (criteria === 'name') return 'הקלד שם לקוח (חלקי)...';
+    if (criteria === 'id') return 'הקלד מספר לקוח (מזהה)...';
     return 'הקלד ערך לחיפוש...';
   };
 
@@ -28,7 +28,7 @@ function BranchClientSearch({ query, setQuery, criteria, setCriteria, onSearch, 
           onChange={(e) => setCriteria(e.target.value)}
           options={[
             { value: 'name', label: 'לפי שם' },
-            { value: 'id', label: 'לפי מספר לקוח' }
+            { value: 'id', label: 'לפי מספר לקוח (מזהה)' }
           ]}
           fullWidth={false}
           className="sm:w-44"

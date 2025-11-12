@@ -45,7 +45,7 @@ function ClientsTable({ clients, onDelete, onRowClick }) {
               onClick={() => onRowClick(client)}
             >
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                {client.client_id}
+                {client.client_number || client.client_id}
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-blue-700">
                 {client.name}

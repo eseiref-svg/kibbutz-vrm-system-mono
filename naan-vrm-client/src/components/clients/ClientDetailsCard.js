@@ -53,7 +53,7 @@ function ClientDetailsCard({ client, onBackToList, onRefresh }) {
         <div className="flex justify-between items-start mb-6">
           <div>
             <h2 className="text-2xl font-bold text-gray-800 mb-2">{client.name}</h2>
-            <p className="text-gray-600">מספר לקוח: {client.client_id}</p>
+            <p className="text-gray-600">מספר לקוח: {client.client_number || client.client_id}</p>
           </div>
           <div className="flex gap-3">
             {client.poc_phone && (

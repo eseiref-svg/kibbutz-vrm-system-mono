@@ -142,7 +142,7 @@ app.post('/api/users/reset-password', async (req, res) => {
 // ALL routes below this line will use the 'auth' middleware to ensure the user is logged in
 app.use(auth);
 
-// קבלת כל הענפים
+// Get all branches
 app.get('/api/branches', async (req, res) => {
   try {
     const result = await db.query('SELECT branch_id, name FROM branch ORDER BY name');
@@ -153,7 +153,7 @@ app.get('/api/branches', async (req, res) => {
   }
 });
 
-// קבלת ענפים שיש להם עסקאות בטבלה הנוכחית
+// Get branches that have transactions in the current table
 app.get('/api/branches/active', async (req, res) => {
   try {
     const query = `
@@ -217,7 +217,7 @@ app.post('/api/supplier-fields', async (req, res) => {
       return res.status(400).json({ message: 'שם התחום הוא שדה חובה' });
     }
     
-    // בדיקה שהתחום לא קיים
+    // Check if field already exists
     const existing = await db.query(
       'SELECT * FROM supplier_field WHERE field = $1', 
       [field.trim()]
@@ -227,7 +227,7 @@ app.post('/api/supplier-fields', async (req, res) => {
       return res.status(400).json({ message: 'תחום זה כבר קיים במערכת' });
     }
     
-    // יצירת תחום חדש
+    // Create new field
     const result = await db.query(
       'INSERT INTO supplier_field (field, tags) VALUES ($1, $2) RETURNING *',
       [field.trim(), tags || []]
@@ -486,8 +486,8 @@ app.put('/api/supplier-requests/:id', async (req, res) => {
 
       const request = updatedRequestResult.rows[0];
   
-      // כרגע לא עושים כלום מלבד עדכון הסטטוס
-      // הגזבר יפתח טופס הוספת ספק ידנית
+      // Currently only updating status
+      // Treasurer will open manual supplier addition form
   
       res.json(updatedRequestResult.rows[0]);
     } catch (err) {
@@ -683,25 +683,41 @@ app.post('/api/reviews', async (req, res) => {
 // --- Notifications Route (Protected) ---
 app.get('/api/notifications/pending-requests-count', async (req, res) => {
     try {
-      // Count both supplier requests AND client requests
+      // Count supplier requests, client requests, AND pending sales (payment requests)
       const supplierResult = await db.query("SELECT COUNT(*) FROM supplier_requests WHERE status = 'pending'");
       const clientResult = await db.query("SELECT COUNT(*) FROM client_request WHERE status = 'pending'");
+      const salesResult = await db.query(`
+        SELECT COUNT(*) 
+        FROM sale s 
+        JOIN transaction t ON s.transaction_id = t.transaction_id 
+        WHERE t.status = 'pending_approval'
+      `);
       
       const supplierCount = parseInt(supplierResult.rows[0].count, 10);
       const clientCount = parseInt(clientResult.rows[0].count, 10);
-      const totalCount = supplierCount + clientCount;
+      const salesCount = parseInt(salesResult.rows[0].count, 10);
+      const totalCount = supplierCount + clientCount + salesCount;
       
-      res.json({ count: totalCount });
+      console.log(`[Notifications] Pending count: ${supplierCount} suppliers + ${clientCount} clients + ${salesCount} sales = ${totalCount} total`);
+      
+      res.json({ 
+        count: totalCount,
+        breakdown: {
+          suppliers: supplierCount,
+          clients: clientCount,
+          sales: salesCount
+        }
+      });
     } catch (err) {
-      console.error(err.message);
+      console.error('[Notifications] Error:', err.message);
       res.status(500).send('Server Error');
     }
 });
 
-// קבלת התראות של משתמש מחובר
+// Get notifications for logged-in user
 app.get('/api/notifications', async (req, res) => {
     try {
-      const userId = req.user.id; // מזהה המשתמש מה-token
+      const userId = req.user.id; // User ID from token
       const result = await db.query(
         `SELECT * FROM notifications 
          WHERE user_id = $1 
@@ -732,7 +748,7 @@ app.get('/api/notifications/unread', async (req, res) => {
     }
 });
 
-// סימון התראה כנקראה
+// Mark notification as read
 app.put('/api/notifications/:id/read', async (req, res) => {
     try {
       const { id } = req.params;
@@ -754,7 +770,7 @@ app.put('/api/notifications/:id/read', async (req, res) => {
     }
 });
 
-// סימון כל ההתראות כנקראו
+// Mark all notifications as read
 app.put('/api/notifications/mark-all-read', async (req, res) => {
     try {
       const userId = req.user.id;
@@ -774,7 +790,7 @@ app.put('/api/notifications/mark-all-read', async (req, res) => {
 // Payment Monitoring & Alerts API Routes
 // ============================================
 
-// קבלת לוח בקרה תשלומים - סיכום כללי
+// Get payments dashboard - general summary
 app.get('/api/payments/dashboard', async (req, res) => {
     try {
       const { branchId } = req.query;
@@ -787,7 +803,7 @@ app.get('/api/payments/dashboard', async (req, res) => {
         params = [branchId];
       }
       
-      // שליפת נתונים סטטיסטיים
+      // Fetch statistical data
       const statsQuery = `
         WITH all_transactions AS (
           SELECT 
@@ -844,7 +860,7 @@ app.get('/api/payments/dashboard', async (req, res) => {
     }
 });
 
-// קבלת רשימת חשבוניות באיחור
+// Get list of overdue invoices
 app.get('/api/payments/overdue', async (req, res) => {
     try {
       const { branchId } = req.query;
@@ -977,7 +993,9 @@ app.get('/api/payments/upcoming', async (req, res) => {
       console.error(err.message);
       res.status(500).send('Server Error');
     }
-});// קבלת כל העסקאות הפתוחות עם פילטרים
+});
+
+// Get all open transactions with filters
 app.get('/api/payments/all', async (req, res) => {
     try {
       const { branchId, status, type, currentMonth } = req.query;
@@ -1009,7 +1027,7 @@ app.get('/api/payments/all', async (req, res) => {
         } else if (status === 'future') {
           filters.push(`due_date > CURRENT_DATE + INTERVAL '7 days'`);
         }
-        // status = 'paid' כבר מטופל למעלה
+        // status = 'paid' already handled above
       }
       
       if (type && type !== 'all') {
@@ -1104,7 +1122,7 @@ app.put('/api/payments/:id/mark-paid', async (req, res) => {
       const { id } = req.params;
       const { actualDate } = req.body;
       
-      // עדכון הסטטוס ל-paid
+      // Update status to paid
       const result = await db.query(
         `UPDATE transaction 
          SET status = 'paid', actual_date = $1 
@@ -1117,7 +1135,7 @@ app.put('/api/payments/:id/mark-paid', async (req, res) => {
         return res.status(404).json({ message: 'Transaction not found' });
       }
       
-      // הסרת ההתראה אם קיימת
+      // Remove alert if exists
       await alertService.removeAlertForPaidTransaction(id);
       
       res.json(result.rows[0]);
@@ -1129,7 +1147,7 @@ app.put('/api/payments/:id/mark-paid', async (req, res) => {
 
 app.post('/api/payments/run-check', async (req, res) => {
     try {
-      // בדיקה שהמשתמש הוא גזבר (permissions_id = 2)
+      // Check that user is treasurer (permissions_id = 2)
       if (req.user.role_id !== 2) {
         return res.status(403).json({ message: 'Unauthorized - Treasurer only' });
       }
@@ -1191,7 +1209,7 @@ app.get('/api/payments/reports/overdue-by-branch', async (req, res) => {
     }
 });
 
-// דוח דפוסי תשלום של ספקים
+// Supplier payment patterns report
 app.get('/api/payments/reports/supplier-patterns', async (req, res) => {
     try {
       const query = `
@@ -1254,8 +1272,9 @@ app.get('/api/clients/search', async (req, res) => {
           sqlQuery += ' AND c.name ILIKE $2';
           params.push(`%${query}%`);
         } else if (criteria === 'id') {
-          sqlQuery += ' AND c.client_id = $2';
-          params.push(query);
+          // Search by client_number (business identifier entered by treasurer)
+          sqlQuery += ' AND c.client_number ILIKE $2';
+          params.push(`%${query}%`);
         }
       }
       
@@ -1285,12 +1304,14 @@ app.get('/api/clients/search', async (req, res) => {
         ORDER BY c.name
       `, [`%${query}%`]);
     } else if (criteria === 'id') {
+      // Search by client_number (business identifier entered by treasurer)
       result = await db.query(`
         SELECT c.*, a.city, a.street_name, a.house_no, a.zip_code, a.phone_no
         FROM client c
         LEFT JOIN address a ON c.address_id = a.address_id
-        WHERE c.client_id = $1
-      `, [query]);
+        WHERE c.client_number ILIKE $1
+        ORDER BY c.name
+      `, [`%${query}%`]);
     } else {
       return res.status(400).json({ message: 'Invalid search criteria' });
     }
@@ -1583,7 +1604,7 @@ app.put('/api/client-requests/:id/approve', auth, async (req, res) => {
     const { id } = req.params;
     const { 
       review_notes, 
-      client_number,  // New: required client number
+      client_number,  // Required: business identifier entered by treasurer
       payment_terms,  // New: default payment terms
       // Allow editing of client details
       client_name,
@@ -1598,7 +1619,7 @@ app.put('/api/client-requests/:id/approve', auth, async (req, res) => {
     const reviewed_by_user_id = req.user.id;
     
     // Validate required fields
-    if (!client_number || !client_number.trim()) {
+    if (!client_number || !client_number.toString().trim()) {
       return res.status(400).json({ message: 'מספר לקוח הוא שדה חובה' });
     }
     
@@ -1618,10 +1639,11 @@ app.put('/api/client-requests/:id/approve', auth, async (req, res) => {
       return res.status(400).json({ message: 'Request already processed' });
     }
     
-    // Check if client_number is unique
+    // Check if client_number is unique (business identifier)
+    const clientNumberValue = client_number.toString().trim();
     const existingClient = await db.query(
       'SELECT client_id FROM client WHERE client_number = $1',
-      [client_number]
+      [clientNumberValue]
     );
     
     if (existingClient.rows.length > 0) {
@@ -1655,7 +1677,8 @@ app.put('/api/client-requests/:id/approve', auth, async (req, res) => {
     ]);
     const addressId = addressResult.rows[0].address_id;
     
-    // 2. Create client with client_number and default_payment_terms
+    // 2. Create client with client_number (business identifier) and default_payment_terms
+    // Note: client_id is AUTO_INCREMENT (technical), client_number is business identifier (entered by treasurer, will come from ERP)
     const clientResult = await db.query(`
       INSERT INTO client (name, address_id, poc_name, poc_phone, poc_email, client_number, default_payment_terms)
       VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -1666,11 +1689,11 @@ app.put('/api/client-requests/:id/approve', auth, async (req, res) => {
       finalPocName,
       finalPocPhone,
       finalPocEmail,
-      client_number,
+      clientNumberValue,
       finalPaymentTerms
     ]);
     const newClient = clientResult.rows[0];
-    console.log(`Created new client: ${newClient.client_id} with client_number: ${client_number}`);
+    console.log(`Created new client: client_id=${newClient.client_id}, client_number=${newClient.client_number}`);
     
     // 3. Update request status and link to created client
     await db.query(`
@@ -1762,7 +1785,6 @@ app.put('/api/client-requests/:id/reject', auth, async (req, res) => {
 app.post('/api/sales', async (req, res) => {
   try {
     const { client_id, branch_id, value, due_date, description, payment_terms } = req.body;
-    const created_by_user_id = req.user.id;
     
     // Validation
     if (!client_id || !branch_id || !value || !due_date) {
@@ -1784,9 +1806,9 @@ app.post('/api/sales', async (req, res) => {
       
       // Create sale record
       const saleResult = await db.query(
-        `INSERT INTO sale (transaction_id, client_id, branch_id, payment_terms, created_by_user_id) 
-         VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-        [transactionId, client_id, branch_id, payment_terms || null, created_by_user_id]
+        `INSERT INTO sale (transaction_id, client_id, branch_id, payment_terms) 
+         VALUES ($1, $2, $3, $4) RETURNING *`,
+        [transactionId, client_id, branch_id, payment_terms || null]
       );
       
       await db.query('COMMIT');
@@ -1844,13 +1866,11 @@ app.get('/api/sales', async (req, res) => {
     
     const query = `
       SELECT s.*, t.value, t.due_date, t.status, t.actual_date, t.description,
-             c.name as client_name, b.name as branch_name,
-             u.first_name || ' ' || u.surname as created_by_name
+             c.name as client_name, b.name as branch_name
       FROM sale s
       JOIN transaction t ON s.transaction_id = t.transaction_id
       LEFT JOIN client c ON s.client_id = c.client_id
       LEFT JOIN branch b ON s.branch_id = b.branch_id
-      LEFT JOIN "user" u ON s.created_by_user_id = u.user_id
       ${whereClause}
       ORDER BY t.due_date DESC
     `;
@@ -1863,6 +1883,71 @@ app.get('/api/sales', async (req, res) => {
   }
 });
 
+// Get recent sales for branch (last 10) - MUST BE BEFORE /api/sales/:id
+app.get('/api/sales/recent', auth, async (req, res) => {
+  try {
+    const { branchId } = req.query;
+    const limit = req.query.limit || 10;
+    
+    console.log(`[API] GET /api/sales/recent - branchId: ${branchId}, limit: ${limit}`);
+    
+    if (!branchId) {
+      return res.status(400).json({ message: 'Branch ID is required' });
+    }
+    
+    const result = await db.query(`
+      SELECT s.sale_id, s.client_id, s.branch_id, s.transaction_id,
+             s.payment_terms, s.invoice_number,
+             t.value, t.due_date, t.status, t.description,
+             COALESCE(t.due_date, NOW()) as transaction_date,
+             c.name as client_name,
+             c.client_number
+      FROM sale s
+      INNER JOIN transaction t ON s.transaction_id = t.transaction_id
+      LEFT JOIN client c ON s.client_id = c.client_id
+      WHERE s.branch_id = $1
+      ORDER BY s.sale_id DESC
+      LIMIT $2
+    `, [branchId, limit]);
+    
+    console.log(`[API] Found ${result.rows.length} sales for branch ${branchId}`);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('[API] Error fetching recent sales:', err);
+    res.status(500).json({ 
+      message: 'שגיאה בטעינת דרישות תשלום אחרונות',
+      error: err.message 
+    });
+  }
+});
+
+// Get pending sales for approval (Treasurer/Accounting) - MUST BE BEFORE /api/sales/:id
+app.get('/api/sales/pending-approval', auth, async (req, res) => {
+  console.log('[API] GET /api/sales/pending-approval - ENTERED');
+  try {
+    const result = await db.query(`
+      SELECT s.sale_id, s.client_id, s.branch_id, s.transaction_id,
+             t.value, t.due_date as transaction_date, t.description,
+             c.name as client_name,
+             c.client_number,
+             c.poc_name, c.poc_phone, c.poc_email,
+             b.name as branch_name
+      FROM sale s
+      JOIN transaction t ON s.transaction_id = t.transaction_id
+      LEFT JOIN client c ON s.client_id = c.client_id
+      LEFT JOIN branch b ON s.branch_id = b.branch_id
+      WHERE t.status = 'pending_approval'
+      ORDER BY t.due_date DESC
+    `);
+    
+    console.log('[API] Pending sales found:', result.rows.length);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('[API] Error fetching pending sales:', err.message);
+    res.status(500).json({ message: 'שגיאה בטעינת דרישות תשלום ממתינות' });
+  }
+});
+
 // Get single sale details
 app.get('/api/sales/:id', async (req, res) => {
   try {
@@ -1870,13 +1955,11 @@ app.get('/api/sales/:id', async (req, res) => {
     const result = await db.query(`
       SELECT s.*, t.value, t.due_date, t.status, t.actual_date, t.description,
              c.name as client_name, c.poc_name, c.poc_email, c.poc_phone,
-             b.name as branch_name,
-             u.first_name || ' ' || u.surname as created_by_name
+             b.name as branch_name
       FROM sale s
       JOIN transaction t ON s.transaction_id = t.transaction_id
       LEFT JOIN client c ON s.client_id = c.client_id
       LEFT JOIN branch b ON s.branch_id = b.branch_id
-      LEFT JOIN "user" u ON s.created_by_user_id = u.user_id
       WHERE s.sale_id = $1
     `, [id]);
     
@@ -1930,14 +2013,12 @@ app.get('/api/sales/:id/payment-request', async (req, res) => {
       SELECT s.*, t.value, t.due_date, t.description,
              c.name as client_name, c.poc_name, c.poc_email, c.poc_phone,
              a.city, a.street_name, a.house_no, a.zip_code,
-             b.name as branch_name,
-             u.first_name || ' ' || u.surname as created_by_name
+             b.name as branch_name
       FROM sale s
       JOIN transaction t ON s.transaction_id = t.transaction_id
       LEFT JOIN client c ON s.client_id = c.client_id
       LEFT JOIN address a ON c.address_id = a.address_id
       LEFT JOIN branch b ON s.branch_id = b.branch_id
-      LEFT JOIN "user" u ON s.created_by_user_id = u.user_id
       WHERE s.sale_id = $1
     `, [id]);
     
@@ -2012,26 +2093,67 @@ app.post('/api/sales/request', auth, async (req, res) => {
   }
 });
 
-// Get pending sales for approval (Treasurer/Accounting)
-app.get('/api/sales/pending-approval', auth, async (req, res) => {
+// Reject sale request (Treasurer rejects with reason)
+app.put('/api/sales/:id/reject', auth, async (req, res) => {
   try {
-    const result = await db.query(`
-      SELECT s.sale_id, s.client_id, s.branch_id, s.transaction_id,
-             t.value, t.due_date as transaction_date, t.description,
-             c.name as client_name,
-             b.name as branch_name
-      FROM sale s
-      JOIN transaction t ON s.transaction_id = t.transaction_id
-      LEFT JOIN client c ON s.client_id = c.client_id
-      LEFT JOIN branch b ON s.branch_id = b.branch_id
-      WHERE t.status = 'pending_approval'
-      ORDER BY t.due_date DESC
-    `);
+    const { id } = req.params;
+    const { rejection_reason } = req.body;
     
-    res.json(result.rows);
+    // Validation
+    if (!rejection_reason || rejection_reason.trim() === '') {
+      return res.status(400).json({ message: 'יש לציין סיבת דחייה' });
+    }
+    
+    // Get sale details
+    const saleResult = await db.query(
+      'SELECT * FROM sale WHERE sale_id = $1',
+      [id]
+    );
+    
+    if (saleResult.rows.length === 0) {
+      return res.status(404).json({ message: 'Sale not found' });
+    }
+    
+    const sale = saleResult.rows[0];
+    
+    // Start transaction
+    await db.query('BEGIN');
+    
+    try {
+      // Update transaction: status = 'rejected', add rejection_reason to description
+      await db.query(`
+        UPDATE transaction
+        SET status = 'rejected', 
+            description = COALESCE(description, '') || E'\n\nסיבת דחייה: ' || $1
+        WHERE transaction_id = $2
+      `, [rejection_reason, sale.transaction_id]);
+      
+      await db.query('COMMIT');
+      
+      // Notify branch manager
+      const branchResult = await db.query(`
+        SELECT manager_id FROM branch
+        WHERE branch_id = $1
+      `, [sale.branch_id]);
+      
+      if (branchResult.rows.length > 0 && branchResult.rows[0].manager_id) {
+        await db.query(`
+          INSERT INTO notifications (user_id, message, type, created_at)
+          VALUES ($1, $2, 'error', NOW())
+        `, [
+          branchResult.rows[0].manager_id,
+          `דרישת תשלום נדחתה על ידי הנהלת חשבונות. סיבה: ${rejection_reason}`
+        ]);
+      }
+      
+      res.json({ message: 'דרישת התשלום נדחתה' });
+    } catch (error) {
+      await db.query('ROLLBACK');
+      throw error;
+    }
   } catch (err) {
-    console.error('Error fetching pending sales:', err.message);
-    res.status(500).json({ message: 'שגיאה בטעינת דרישות תשלום ממתינות' });
+    console.error('Error rejecting sale:', err.message);
+    res.status(500).json({ message: 'שגיאה בדחיית דרישת התשלום' });
   }
 });
 
@@ -2044,6 +2166,11 @@ app.put('/api/sales/:id/approve', auth, async (req, res) => {
     // Validation
     if (!payment_terms) {
       return res.status(400).json({ message: 'תנאי תשלום הוא שדה חובה' });
+    }
+    
+    // Validation for invoice_number
+    if (!invoice_number || invoice_number.trim() === '') {
+      return res.status(400).json({ message: 'מספר חשבונית הוא שדה חובה' });
     }
     
     // Get sale details
@@ -2089,18 +2216,17 @@ app.put('/api/sales/:id/approve', auth, async (req, res) => {
       await db.query('COMMIT');
       
       // Notify branch manager
-      const branchManagerResult = await db.query(`
-        SELECT user_id FROM "user"
-        WHERE branch_id = $1 AND permissions_id = 3
-        LIMIT 1
+      const branchResult = await db.query(`
+        SELECT manager_id FROM branch
+        WHERE branch_id = $1
       `, [sale.branch_id]);
       
-      if (branchManagerResult.rows.length > 0) {
+      if (branchResult.rows.length > 0 && branchResult.rows[0].manager_id) {
         await db.query(`
           INSERT INTO notifications (user_id, message, type, created_at)
           VALUES ($1, $2, 'success', NOW())
         `, [
-          branchManagerResult.rows[0].user_id,
+          branchResult.rows[0].manager_id,
           'דרישת תשלום אושרה על ידי הנהלת חשבונות'
         ]);
       }
