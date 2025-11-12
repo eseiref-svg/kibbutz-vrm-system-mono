@@ -23,7 +23,7 @@ ChartJS.register(
   Filler
 );
 
-// עטיפת הרכיב ב-forwardRef מאפשרת להורה לקבל גישה ישירה לרכיב הגרף
+// Wrapping component with forwardRef allows parent to get direct access to chart component
 const AnnualCashFlowChart = forwardRef(({ reportData }, ref) => {
   const options = {
     responsive: true,
@@ -83,7 +83,7 @@ const AnnualCashFlowChart = forwardRef(({ reportData }, ref) => {
 
   return (
     <div className="relative" style={{ height: '400px' }}>
-        {/* העברת ה-ref לרכיב ה-Line מאפשרת לנו "לצלם" אותו */}
+        {/* Passing ref to Line component allows us to "capture" it */}
         <Line ref={ref} options={options} data={data} />
     </div>
   );

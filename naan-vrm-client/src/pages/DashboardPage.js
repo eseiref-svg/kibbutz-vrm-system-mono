@@ -94,10 +94,10 @@ function DashboardPage() {
   };
 
   const handleSupplierAdded = async (supplier) => {
-    // עדכון הבקשה לסטטוס approved
+    // Update request status to approved
     try {
       await api.put(`/supplier-requests/${selectedRequest.request_id}`, { status: 'approved' });
-      // הסרת הבקשה מהרשימה
+      // Remove request from list
       setRequests(prevRequests => prevRequests.filter(req => req.request_id !== selectedRequest.request_id));
       triggerRefresh(); // Refresh notification bell immediately
       setShowAddSupplierForm(false);

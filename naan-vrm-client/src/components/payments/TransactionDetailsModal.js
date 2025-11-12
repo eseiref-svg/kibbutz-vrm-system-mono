@@ -41,7 +41,7 @@ const TransactionDetailsModal = ({ transaction, isOpen, onClose }) => {
           </div>
 
           <div className="space-y-6">
-            {/* מידע כללי */}
+            {/* General information */}
             <div className="bg-gray-50 rounded-lg p-4">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">מידע כללי</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -66,7 +66,7 @@ const TransactionDetailsModal = ({ transaction, isOpen, onClose }) => {
               </div>
             </div>
 
-            {/* תאריכים */}
+            {/* Dates */}
             <div className="bg-gray-50 rounded-lg p-4">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">תאריכים</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -89,7 +89,7 @@ const TransactionDetailsModal = ({ transaction, isOpen, onClose }) => {
               </div>
             </div>
 
-            {/* פרטי ישות */}
+            {/* Entity details */}
             <div className="bg-gray-50 rounded-lg p-4">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">פרטי ישות</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -104,7 +104,7 @@ const TransactionDetailsModal = ({ transaction, isOpen, onClose }) => {
               </div>
             </div>
 
-            {/* התראות */}
+            {/* Alerts */}
             {transaction.alert_type && (
               <div className="bg-gray-50 rounded-lg p-4">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">התראות</h3>

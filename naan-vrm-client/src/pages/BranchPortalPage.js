@@ -1,17 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import api from '../api/axiosConfig';
 import { useAuth } from '../context/AuthContext';
 import BalanceCard from '../components/branch-portal/BalanceCard';
-import RecentOrdersTable from '../components/branch-portal/RecentOrdersTable';
 import BranchSupplierSearch from '../components/branch-portal/BranchSupplierSearch';
 import BranchSupplierInfoCard from '../components/branch-portal/BranchSupplierInfoCard';
 import RequestSupplierForm from '../components/branch-portal/RequestSupplierForm';
 import NotificationsList from '../components/branch-portal/NotificationsList';
 import Button from '../components/shared/Button';
 import BranchClientManagement from '../components/branch-portal/BranchClientManagement';
+import TransactionsWidget from '../components/branch-portal/TransactionsWidget';
 
 function BranchPortalPage() {
   const { user } = useAuth();
+  const transactionsWidgetRef = useRef();
   
   const [branch, setBranch] = useState(null);
   const [balance, setBalance] = useState(null);
@@ -71,6 +72,13 @@ function BranchPortalPage() {
     alert('הבקשה נשלחה בהצלחה ותועבר לאישור הגזבר.');
   };
 
+  const handleSaleCreated = () => {
+    // Refresh transactions widget after sale creation
+    if (transactionsWidgetRef.current) {
+      transactionsWidgetRef.current.refresh();
+    }
+  };
+
   return (
     <div>
       <div className="flex justify-between items-center mb-6 pb-4 border-b-2 border-gray-200">
@@ -118,12 +126,16 @@ function BranchPortalPage() {
             )}
           </div>
 
-          <BranchClientManagement branchId={branch.branch_id} />
+          <BranchClientManagement 
+            branchId={branch.branch_id}
+            onSaleCreated={handleSaleCreated}
+          />
 
-          <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
-            <h3 className="text-xl font-bold text-gray-800 mb-4 border-b pb-2">סטטוס הזמנות אחרונות</h3>
-            <RecentOrdersTable transactions={transactions} />
-          </div>
+          <TransactionsWidget 
+            ref={transactionsWidgetRef}
+            branchId={branch.branch_id} 
+            supplierTransactions={transactions}
+          />
         </div>
       ) : (
         <p>לא משויך ענף למשתמש זה.</p>

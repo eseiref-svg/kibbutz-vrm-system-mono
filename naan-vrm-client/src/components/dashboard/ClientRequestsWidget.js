@@ -7,7 +7,17 @@ function ClientRequestsWidget({ requests, onUpdateRequest, onApproveRequest }) {
   const { triggerRefresh } = useNotifications();
 
   const handleReject = async (requestId) => {
+    // Confirm rejection
+    if (!window.confirm('האם אתה בטוח שברצונך לדחות את בקשת הלקוח?')) {
+      return;
+    }
+
     const reviewNotes = window.prompt('הזן הערות לדחיית הבקשה (אופציונלי):');
+    
+    // User can cancel at prompt stage too
+    if (reviewNotes === null) {
+      return;
+    }
     
     try {
       await api.put(`/client-requests/${requestId}/reject`, {

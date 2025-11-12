@@ -2,11 +2,11 @@ import React from 'react';
 import { Doughnut } from 'react-chartjs-2';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
 
-// רישום מפורש של כל הרכיבים שגרף הדונאט צריך כדי לפעול
+// Explicit registration of all components needed for donut chart to work
 ChartJS.register(ArcElement, Tooltip, Legend);
 
 function ExpensesChart({ chartData }) {
-  // בדיקה חשובה: אם אין נתונים, הצג הודעה מתאימה במקום לנסות לצייר גרף ריק
+  // Important check: if no data, show appropriate message instead of trying to draw empty chart
   if (!chartData || !chartData.labels || chartData.labels.length === 0) {
     return <p className="text-center text-gray-500 text-sm">אין נתוני הוצאות להצגה.</p>;
   }
@@ -33,7 +33,7 @@ function ExpensesChart({ chartData }) {
     maintainAspectRatio: false,
     plugins: {
       legend: {
-        position: 'right', // הצגת המקרא בצד ימין, מתאים יותר לגרף דונאט
+        position: 'right', // Display legend on right side, more suitable for donut chart
         labels: {
           font: {
             size: 10

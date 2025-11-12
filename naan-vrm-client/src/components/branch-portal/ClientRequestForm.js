@@ -61,7 +61,7 @@ function ClientRequestForm({ open, onClose, onSuccess, branchId }) {
       errors.poc_name = 'שם איש הקשר הוא שדה חובה';
     }
     
-    // אימות טלפון - חובה, בדיוק 10 ספרות
+    // Phone validation - required, exactly 10 digits
     if (!formData.poc_phone || !formData.poc_phone.trim()) {
       errors.poc_phone = 'טלפון איש קשר הוא שדה חובה';
     } else {
@@ -71,7 +71,7 @@ function ClientRequestForm({ open, onClose, onSuccess, branchId }) {
       }
     }
     
-    // אימות אימייל - רק אותיות אנגלית ופורמט תקין (רק אם הוזן)
+    // Email validation - English letters only and valid format (only if provided)
     if (formData.poc_email && formData.poc_email.trim()) {
       const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
       if (!emailRegex.test(formData.poc_email)) {

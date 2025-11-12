@@ -43,14 +43,14 @@ function RequestSupplierForm({ open, onClose, onSuccess, userId, branchId }) {
   const validateForm = () => {
     const errors = {};
     
-    // אימות ח.פ. ספק - חובה, עד 9 ספרות
+    // Supplier ID validation - required, up to 9 digits
     if (!formData.supplier_id || !formData.supplier_id.trim()) {
       errors.supplier_id = 'מספר ח.פ. הוא שדה חובה';
     } else if (!/^\d{1,9}$/.test(formData.supplier_id.trim())) {
       errors.supplier_id = 'מספר ח.פ. חייב להכיל עד 9 ספרות';
     }
     
-    // אימות אימייל - רק אותיות אנגלית ופורמט תקין (רק אם הוזן)
+    // Email validation - English letters only and valid format (only if provided)
     if (formData.poc_email && formData.poc_email.trim()) {
       const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
       if (!emailRegex.test(formData.poc_email)) {
@@ -58,7 +58,7 @@ function RequestSupplierForm({ open, onClose, onSuccess, userId, branchId }) {
       }
     }
     
-    // אימות טלפון - בדיוק 10 ספרות (רק אם הוזן)
+    // Phone validation - exactly 10 digits (only if provided)
     if (formData.poc_phone && formData.poc_phone.trim()) {
       const phoneDigits = formData.poc_phone.replace(/-/g, '');
       if (!/^\d{10}$/.test(phoneDigits)) {
@@ -70,7 +70,7 @@ function RequestSupplierForm({ open, onClose, onSuccess, userId, branchId }) {
   };
 
   const handleSubmit = async () => {
-    // בדיקת validation
+    // Validation check
     const errors = validateForm();
     if (Object.keys(errors).length > 0) {
       setValidationErrors(errors);

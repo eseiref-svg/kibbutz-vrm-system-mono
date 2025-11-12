@@ -15,7 +15,7 @@ const Modal = ({
 }) => {
   if (!isOpen) return null;
 
-  // גדלים למודל
+  // Modal sizes
   const sizeStyles = {
     sm: 'max-w-md',
     md: 'max-w-lg',

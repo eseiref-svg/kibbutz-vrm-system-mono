@@ -68,7 +68,7 @@ function TagManagementPage() {
   };
 
   const handleCreateField = async () => {
-    // אימות
+    // Validation
     if (!newFieldName.trim()) {
       setValidationError('שם התחום הוא שדה חובה');
       return;

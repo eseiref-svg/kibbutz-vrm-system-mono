@@ -10,7 +10,7 @@ export const AuthProvider = ({ children }) => {
   const login = (token) => {
     localStorage.setItem('token', token);
     const decoded = jwtDecode(token);
-    // כאן נשמור את כל המידע החשוב על המשתמש
+    // Here we save all important user information
     setUser({ id: decoded.user.id, role_id: decoded.user.role_id });
   };
 

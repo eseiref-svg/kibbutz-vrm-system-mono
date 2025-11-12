@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-// 1. ניצור "מופע" מרכזי של axios עם כתובת השרת שלנו
+// 1. Create central axios instance with our server URL
 const baseURL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 console.log('🔗 API Base URL:', baseURL);
 
@@ -8,16 +8,16 @@ const api = axios.create({
   baseURL: baseURL
 });
 
-// 2. זהו "מחזיק המפתחות". הוא יפעל אוטומטית לפני כל בקשה
+// 2. This is the "key holder" (interceptor). It runs automatically before every request
 api.interceptors.request.use(
   config => {
-    // 3. הוא בודק אם יש לנו "כרטיס כניסה" שמור
+    // 3. Check if we have a saved "entry card" (token)
     const token = localStorage.getItem('token');
     if (token) {
-      // 4. אם כן, הוא מוסיף אותו לכותרת הבקשה
+      // 4. If yes, add it to the request header
       config.headers['x-auth-token'] = token;
     }
-    return config; // 5. הוא משחרר את הבקשה המעודכנת לדרכה
+    return config; // 5. Release the updated request on its way
   },
   error => {
     return Promise.reject(error);
