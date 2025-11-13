@@ -260,3 +260,4 @@ psql -U postgres -d naan_vrm -f test-data-qa-new-flow.sql
 **גרסה**: 2.0 - תהליך חדש מופרד
 
 
+

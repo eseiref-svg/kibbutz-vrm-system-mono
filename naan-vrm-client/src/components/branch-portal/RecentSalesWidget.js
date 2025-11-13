@@ -132,3 +132,4 @@ function RecentSalesWidget({ branchId }) {
 
 export default RecentSalesWidget;
 
+
