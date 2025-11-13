@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import api from '../../api/axiosConfig';
 import CreateSaleForm from '../clients/CreateSaleForm';
 import BranchClientSearch from './BranchClientSearch';
@@ -16,11 +16,13 @@ function BranchClientManagement({ branchId, onSaleCreated }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchCriteria, setSearchCriteria] = useState('name');
 
-  useEffect(() => {
-    fetchClients();
-  }, [branchId]);
+  const fetchClients = useCallback(async () => {
+    if (!branchId) {
+      setClients([]);
+      setAllClients([]);
+      return;
+    }
 
-  const fetchClients = async () => {
     try {
       setError('');
       setLoading(true);
@@ -40,7 +42,11 @@ function BranchClientManagement({ branchId, onSaleCreated }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [branchId]);
+
+  useEffect(() => {
+    fetchClients();
+  }, [fetchClients]);
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) {

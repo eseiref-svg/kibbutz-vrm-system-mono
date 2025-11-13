@@ -4,7 +4,6 @@ import ClientsTable from '../components/clients/ClientsTable';
 import ClientSearch from '../components/clients/ClientSearch';
 import ClientDetailsCard from '../components/clients/ClientDetailsCard';
 import AddClientForm from '../components/clients/AddClientForm';
-import { Button } from '@mui/material';
 
 function ClientsPage() {
   const [clients, setClients] = useState([]);
@@ -76,7 +75,6 @@ function ClientsPage() {
         <ClientDetailsCard 
           client={selectedClient}
           onBackToList={() => setSelectedClient(null)}
-          onRefresh={fetchClients}
         />
       ) : (
         <>

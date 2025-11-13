@@ -1,4 +1,4 @@
-import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
+import React, { useState, useEffect, forwardRef, useImperativeHandle, useCallback } from 'react';
 import api from '../../api/axiosConfig';
 
 const TransactionsWidget = forwardRef(({ branchId, supplierTransactions }, ref) => {
@@ -9,16 +9,12 @@ const TransactionsWidget = forwardRef(({ branchId, supplierTransactions }, ref) 
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'desc' });
   const [statusFilter, setStatusFilter] = useState('all');
 
-  useEffect(() => {
-    fetchRecentSales();
-  }, [branchId]);
+  const fetchRecentSales = useCallback(async () => {
+    if (!branchId) {
+      setSales([]);
+      return;
+    }
 
-  // Expose refresh method to parent
-  useImperativeHandle(ref, () => ({
-    refresh: fetchRecentSales
-  }));
-
-  const fetchRecentSales = async () => {
     try {
       setLoading(true);
       setError('');
@@ -32,7 +28,16 @@ const TransactionsWidget = forwardRef(({ branchId, supplierTransactions }, ref) 
     } finally {
       setLoading(false);
     }
-  };
+  }, [branchId]);
+
+  useEffect(() => {
+    fetchRecentSales();
+  }, [fetchRecentSales]);
+
+  // Expose refresh method to parent
+  useImperativeHandle(ref, () => ({
+    refresh: fetchRecentSales
+  }));
 
   const getStatusLabel = (status) => {
     switch (status) {

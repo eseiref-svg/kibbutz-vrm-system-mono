@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import api from '../../api/axiosConfig';
 import CreateSaleForm from './CreateSaleForm';
 import ClientSalesTable from './ClientSalesTable';
@@ -8,11 +8,7 @@ function ClientDetailsCard({ client, onBackToList, onRefresh }) {
   const [loading, setLoading] = useState(true);
   const [showCreateSaleForm, setShowCreateSaleForm] = useState(false);
 
-  useEffect(() => {
-    fetchSales();
-  }, [client.client_id]);
-
-  const fetchSales = async () => {
+  const fetchSales = useCallback(async () => {
     try {
       const response = await api.get(`/clients/${client.client_id}/sales`);
       setSales(response.data);
@@ -21,7 +17,11 @@ function ClientDetailsCard({ client, onBackToList, onRefresh }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [client.client_id]);
+
+  useEffect(() => {
+    fetchSales();
+  }, [fetchSales]);
 
   const handleSaleCreated = () => {
     fetchSales();

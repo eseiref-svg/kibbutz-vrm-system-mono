@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import api from '../../api/axiosConfig';
 import Button from '../shared/Button';
 
@@ -7,11 +7,7 @@ function NotificationsList() {
   const [loading, setLoading] = useState(true);
   const [showAll, setShowAll] = useState(false);
 
-  useEffect(() => {
-    fetchNotifications();
-  }, [showAll]);
-
-  const fetchNotifications = async () => {
+  const fetchNotifications = useCallback(async () => {
     try {
       setLoading(true);
       const endpoint = showAll ? '/notifications' : '/notifications/unread';
@@ -22,7 +18,11 @@ function NotificationsList() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [showAll]);
+
+  useEffect(() => {
+    fetchNotifications();
+  }, [fetchNotifications]);
 
   const markAsRead = async (notificationId) => {
     try {

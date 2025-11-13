@@ -1,10 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import api from '../../api/axiosConfig';
-import { useAuth } from '../../context/AuthContext';
-import { Rating, Typography } from '@mui/material';
+import { Rating } from '@mui/material';
 import Button from '../shared/Button';
 import Input from '../shared/Input';
-import RatingSummary from '../shared/RatingSummary';
 import ReviewList from '../shared/ReviewList';
 
 function SupplierDetailsCard({ supplier, onBackToList, onEdit }) {
@@ -14,9 +12,7 @@ function SupplierDetailsCard({ supplier, onBackToList, onEdit }) {
   const [newRating, setNewRating] = useState(0);
   const [newComment, setNewComment] = useState('');
   
-  const { user } = useAuth();
-
-  const fetchReviews = () => {
+  const fetchReviews = useCallback(() => {
     if (!supplier) return;
     setLoadingReviews(true);
     api.get(`/suppliers/${supplier.supplier_id}/reviews`)
@@ -25,13 +21,13 @@ function SupplierDetailsCard({ supplier, onBackToList, onEdit }) {
       })
       .catch(error => console.error("Error fetching reviews:", error))
       .finally(() => setLoadingReviews(false));
-  };
+  }, [supplier]);
 
   useEffect(() => {
     if (activeTab === 'performance') {
       fetchReviews();
     }
-  }, [activeTab, supplier]);
+  }, [activeTab, fetchReviews]);
 
   const handleReviewSubmit = async () => {
     if (newRating === 0) {

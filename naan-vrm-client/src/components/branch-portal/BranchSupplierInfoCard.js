@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import api from '../../api/axiosConfig';
-import { useAuth } from '../../context/AuthContext';
 import { Rating } from '@mui/material';
 import Button from '../shared/Button';
 import Input from '../shared/Input';
@@ -8,7 +7,6 @@ import RatingSummary from '../shared/RatingSummary';
 import ReviewList from '../shared/ReviewList';
 
 function BranchSupplierInfoCard({ supplier, onClear }) {
-  const { user } = useAuth();
   const [reviews, setReviews] = useState([]);
   const [loadingReviews, setLoadingReviews] = useState(false);
   const [showReviews, setShowReviews] = useState(false);

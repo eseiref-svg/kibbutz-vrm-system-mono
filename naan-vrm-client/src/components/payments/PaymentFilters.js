@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import api from '../../api/axiosConfig';
 import Select from '../shared/Select';
 
@@ -11,24 +11,24 @@ const PaymentFilters = ({ onFilterChange }) => {
     type: 'all',
   });
 
-  useEffect(() => {
-    fetchBranches();
-  }, []);
-
-  useEffect(() => {
-    if (onFilterChange) {
-      onFilterChange(filters);
-    }
-  }, [filters]);
-
-  const fetchBranches = async () => {
+  const fetchBranches = useCallback(async () => {
     try {
       const response = await api.get('/branches/active');
       setBranches(response.data);
     } catch (error) {
       console.error('Error fetching branches:', error);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchBranches();
+  }, [fetchBranches]);
+
+  useEffect(() => {
+    if (onFilterChange) {
+      onFilterChange(filters);
+    }
+  }, [filters, onFilterChange]);
 
   const handleFilterChange = (field, value) => {
     setFilters(prev => ({

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import api from '../api/axiosConfig';
 import PaymentStatsCards from '../components/payments/PaymentStatsCards';
 import PaymentsTable from '../components/payments/PaymentsTable';
@@ -12,25 +12,7 @@ const PaymentsDashboardPage = () => {
   const [filters, setFilters] = useState({});
   const [activeTab, setActiveTab] = useState('all'); // all, overdue, upcoming
 
-  useEffect(() => {
-    fetchData();
-  }, [filters]);
-
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      await Promise.all([
-        fetchStats(),
-        fetchPayments()
-      ]);
-    } catch (error) {
-      console.error('Error fetching payment data:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     try {
       const params = {};
       if (filters.branchId) {
@@ -42,9 +24,9 @@ const PaymentsDashboardPage = () => {
     } catch (error) {
       console.error('Error fetching stats:', error);
     }
-  };
+  }, [filters.branchId]);
 
-  const fetchPayments = async () => {
+  const fetchPayments = useCallback(async () => {
     try {
       const params = {
         // Limit to current month
@@ -77,7 +59,25 @@ const PaymentsDashboardPage = () => {
     } catch (error) {
       console.error('Error fetching payments:', error);
     }
-  };
+  }, [filters, activeTab]);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      await Promise.all([
+        fetchStats(),
+        fetchPayments()
+      ]);
+    } catch (error) {
+      console.error('Error fetching payment data:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchStats, fetchPayments]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const handleFilterChange = (newFilters) => {
     setFilters(newFilters);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import api from '../api/axiosConfig';
 import AnnualCashFlowChart from '../components/reports/AnnualCashFlowChart';
 import Button from '../components/shared/Button';
@@ -44,12 +44,7 @@ function ReportsPage() {
     fetchReportData();
   }, [selectedYear]);
 
-  // Payment reports functions
-  useEffect(() => {
-    fetchPaymentReportData();
-  }, [activeReport]);
-
-  const fetchPaymentReportData = async () => {
+  const fetchPaymentReportData = useCallback(async () => {
     setPaymentLoading(true);
     try {
       const endpoint = activeReport === 'overdue-by-branch' 
@@ -63,7 +58,11 @@ function ReportsPage() {
     } finally {
       setPaymentLoading(false);
     }
-  };
+  }, [activeReport]);
+
+  useEffect(() => {
+    fetchPaymentReportData();
+  }, [fetchPaymentReportData]);
 
   const exportPaymentToCSV = () => {
     if (!paymentReportData || paymentReportData.length === 0) return;
