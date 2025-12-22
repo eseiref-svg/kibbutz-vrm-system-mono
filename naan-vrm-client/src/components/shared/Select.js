@@ -1,13 +1,13 @@
 import React from 'react';
 
 /**
- * תפריט בחירה אחיד למערכת
+ * Unified system select menu
  */
-const Select = ({ 
-  label, 
-  name, 
-  value, 
-  onChange, 
+const Select = ({
+  label,
+  name,
+  value,
+  onChange,
   options = [],
   required = false,
   disabled = false,
@@ -16,8 +16,10 @@ const Select = ({
   fullWidth = true,
   placeholder = 'בחר אפשרות',
   className = '',
-  ...props 
+  id,
+  ...props
 }) => {
+  const selectId = id || name;
   const selectClasses = `
     w-full px-4 py-2.5 text-base border rounded-lg 
     transition-all duration-200 bg-white
@@ -30,12 +32,13 @@ const Select = ({
   return (
     <div className={fullWidth ? 'w-full' : ''}>
       {label && (
-        <label className="block text-sm font-semibold text-gray-700 mb-1.5 text-right">
+        <label htmlFor={selectId} className="block text-sm font-semibold text-gray-700 mb-1.5 text-right">
           {label}
           {required && <span className="text-red-500 mr-1">*</span>}
         </label>
       )}
       <select
+        id={selectId}
         name={name}
         value={value}
         onChange={onChange}

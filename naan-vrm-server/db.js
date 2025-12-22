@@ -9,7 +9,7 @@ let poolConfig;
 
 if (process.env.DATABASE_URL) {
   // PRODUCTION environment - Railway provides DATABASE_URL
-  console.log('🟢 מתחבר ל-DB: PRODUCTION (Railway)');
+  console.log('מתחבר ל-DB: PRODUCTION (Railway)');
   poolConfig = {
     connectionString: process.env.DATABASE_URL,
     ssl: {
@@ -21,7 +21,7 @@ if (process.env.DATABASE_URL) {
   };
 } else {
   // DEVELOPMENT environment - local variables
-  console.log('🔵 מתחבר ל-DB: DEVELOPMENT (מקומי)');
+  console.log('מתחבר ל-DB: DEVELOPMENT (מקומי)');
   poolConfig = {
     user: process.env.DB_USER,
     host: process.env.DB_HOST,
@@ -32,7 +32,7 @@ if (process.env.DATABASE_URL) {
     idleTimeoutMillis: 30000,
     max: 20,
   };
-  console.log('🔧 הגדרות DB מקומי:', {
+  console.log('הגדרות DB מקומי:', {
     host: process.env.DB_HOST,
     port: process.env.DB_PORT,
     database: process.env.DB_NAME,

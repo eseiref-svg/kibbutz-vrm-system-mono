@@ -25,15 +25,15 @@ function ClientSalesTable({ sales, onRefresh }) {
       const data = response.data;
 
       const doc = new jsPDF();
-      
+
       // Header
       doc.setFontSize(18);
       doc.text('דרישת תשלום', 105, 20, { align: 'center' });
-      
+
       doc.setFontSize(12);
       doc.text(`תאריך: ${new Date().toLocaleDateString('he-IL')}`, 20, 40);
       doc.text(`מספר דרישה: ${saleId}`, 20, 50);
-      
+
       // Client details
       doc.setFontSize(14);
       doc.text('פרטי לקוח:', 20, 70);
@@ -42,7 +42,7 @@ function ClientSalesTable({ sales, onRefresh }) {
       doc.text(`איש קשר: ${data.poc_name}`, 20, 90);
       if (data.poc_email) doc.text(`אימייל: ${data.poc_email}`, 20, 100);
       if (data.poc_phone) doc.text(`טלפון: ${data.poc_phone}`, 20, 110);
-      
+
       // Payment details
       doc.setFontSize(14);
       doc.text('פרטי התשלום:', 20, 130);
@@ -51,7 +51,7 @@ function ClientSalesTable({ sales, onRefresh }) {
       doc.text(`תאריך יעד: ${new Date(data.due_date).toLocaleDateString('he-IL')}`, 20, 150);
       if (data.payment_terms) doc.text(`תנאי תשלום: ${data.payment_terms}`, 20, 160);
       if (data.description) doc.text(`תיאור: ${data.description}`, 20, 170);
-      
+
       doc.save(`payment_request_${saleId}.pdf`);
     } catch (error) {
       console.error('Error generating PDF:', error);
@@ -110,7 +110,7 @@ function ClientSalesTable({ sales, onRefresh }) {
                   onClick={() => handleGeneratePDF(sale.sale_id)}
                   className="text-blue-600 hover:text-blue-900 font-semibold ml-3"
                 >
-                  📄 PDF
+                  PDF
                 </button>
                 {sale.status === 'open' && (
                   <button
@@ -130,6 +130,7 @@ function ClientSalesTable({ sales, onRefresh }) {
 }
 
 export default ClientSalesTable;
+
 
 
 

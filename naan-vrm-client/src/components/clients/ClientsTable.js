@@ -39,13 +39,13 @@ function ClientsTable({ clients, onDelete, onRowClick }) {
         </thead>
         <tbody className="bg-white divide-y divide-gray-200">
           {clients.map((client) => (
-            <tr 
-              key={client.client_id} 
+            <tr
+              key={client.client_id}
               className="hover:bg-gray-50 cursor-pointer transition-colors"
               onClick={() => onRowClick(client)}
             >
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                {client.client_number || client.client_id}
+                {client.client_number || '-'}
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-blue-700">
                 {client.name}
@@ -63,7 +63,7 @@ function ClientsTable({ clients, onDelete, onRowClick }) {
                 {client.city || '-'}
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                <button 
+                <button
                   onClick={(e) => {
                     e.stopPropagation();
                     onDelete(client.client_id);
@@ -77,11 +77,12 @@ function ClientsTable({ clients, onDelete, onRowClick }) {
           ))}
         </tbody>
       </table>
-    </div>
+    </div >
   );
 }
 
 export default ClientsTable;
+
 
 
 

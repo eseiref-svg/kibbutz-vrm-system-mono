@@ -78,8 +78,8 @@ class AlertService {
 
       const notificationType = alertType === 'payment_overdue' ? 'alert' : 'info';
       const result = await db.query(query, [userId, title, message, notificationType]);
-      
-      console.log(`📬 Notification sent to user ${userId} for transaction ${transaction.transaction_id}`);
+
+      console.log(`Notification sent to user ${userId} for transaction ${transaction.transaction_id}`);
       return result.rows[0];
     } catch (error) {
       console.error('Error sending notification:', error);
@@ -88,7 +88,7 @@ class AlertService {
 
   generateNotificationTitle(alertType, daysUntilDue) {
     if (alertType === 'upcoming_payment') return '⏰ תזכורת: תשלום בעוד 7 ימים';
-    if (alertType === 'payment_due_today') return '📅 תשלום בתאריך היעד - היום!';
+    if (alertType === 'payment_due_today') return 'תשלום בתאריך היעד - היום!';
     if (alertType === 'payment_overdue') {
       const daysOverdue = Math.abs(daysUntilDue);
       return `⚠️ איחור בתשלום - ${daysOverdue} ימים`;
@@ -116,7 +116,7 @@ class AlertService {
       const daysOverdue = Math.abs(daysUntilDue);
       return `${transactionType}: ${entityName} | סכום: ${amount} | ענף: ${branchName} | איחור של ${daysOverdue} ימים (תאריך יעד: ${new Date(transaction.due_date).toLocaleDateString('he-IL')})`;
     }
-    
+
     return `עסקה: ${transactionType} | ${entityName} | ${amount}`;
   }
 
@@ -148,6 +148,21 @@ class AlertService {
     `;
     const result = await db.query(query);
     return result.rows;
+  }
+
+  async sendActionNotification(userId, title, message, type = 'action_required') {
+    try {
+      const query = `
+        INSERT INTO notifications (user_id, title, message, type, is_read, created_at)
+        VALUES ($1, $2, $3, $4, FALSE, NOW())
+        RETURNING *
+      `;
+      const result = await db.query(query, [userId, title, message, type]);
+      console.log(`Notification (${type}) sent to user ${userId}: ${title}`);
+      return result.rows[0];
+    } catch (error) {
+      console.error('Error sending action notification:', error);
+    }
   }
 }
 

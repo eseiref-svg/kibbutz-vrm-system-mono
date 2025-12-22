@@ -1,13 +1,13 @@
 import React from 'react';
 
 /**
- * שדה טקסט רב-שורות אחיד למערכת
+ * Unified system multi-line text input
  */
-const Textarea = ({ 
-  label, 
-  name, 
-  value, 
-  onChange, 
+const Textarea = ({
+  label,
+  name,
+  value,
+  onChange,
   placeholder,
   required = false,
   disabled = false,
@@ -16,7 +16,7 @@ const Textarea = ({
   fullWidth = true,
   className = '',
   rows = 4,
-  ...props 
+  ...props
 }) => {
   const textareaClasses = `
     w-full px-4 py-2.5 text-base border rounded-lg 

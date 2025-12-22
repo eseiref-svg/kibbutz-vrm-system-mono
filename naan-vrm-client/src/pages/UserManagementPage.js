@@ -4,6 +4,7 @@ import Button from '../components/shared/Button';
 import Modal from '../components/shared/Modal';
 import Input from '../components/shared/Input';
 import Select from '../components/shared/Select';
+import { validatePhoneNumber, validateEmail, validateRequired, validatePassword } from '../utils/validation';
 
 function UserManagementPage() {
   const [users, setUsers] = useState([]);
@@ -12,7 +13,7 @@ function UserManagementPage() {
   const [error, setError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchCriteria, setSearchCriteria] = useState('name');
-  
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
@@ -83,24 +84,48 @@ function UserManagementPage() {
   };
 
   const handleChange = (e) => {
-    setCurrentUser({ ...currentUser, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    // Handle number inputs specifically if needed, but for select it's usually string
+    // We will convert permissions_id to int when saving or here if we want strict typing
+    const newValue = name === 'permissions_id' ? parseInt(value, 10) : value;
+    setCurrentUser({ ...currentUser, [name]: newValue });
   };
 
   const validateForm = () => {
     const errors = {};
-    
-    // Email validation - English letters only and valid format
-    const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-    if (!currentUser.email || !emailRegex.test(currentUser.email)) {
-      errors.email = 'כתובת אימייל לא תקינה. יש להשתמש באותיות אנגלית בלבד';
+
+    const requiredFields = [
+      { value: currentUser.first_name, name: 'first_name', label: 'שם פרטי' },
+      { value: currentUser.surname, name: 'surname', label: 'שם משפחה' }
+    ];
+
+    for (const field of requiredFields) {
+      const validation = validateRequired(field.value, field.label);
+      if (!validation.isValid) {
+        errors[field.name] = validation.error;
+      }
     }
-    
-    // Phone validation - exactly 10 digits (after removing hyphens)
-    const phoneDigits = (currentUser.phone_no || '').replace(/-/g, '');
-    if (!/^\d{10}$/.test(phoneDigits)) {
-      errors.phone_no = 'מספר טלפון חייב להכיל בדיוק 10 ספרות';
+
+    // Email validation
+    const emailValidation = validateEmail(currentUser.email);
+    if (!emailValidation.isValid) {
+      errors.email = emailValidation.error;
     }
-    
+
+    // Phone validation
+    const phoneValidation = validatePhoneNumber(currentUser.phone_no);
+    if (!phoneValidation.isValid) {
+      errors.phone_no = phoneValidation.error;
+    }
+
+    // Password validation (only for new users or if password is provided during edit)
+    if (!isEditing || (currentUser.password && currentUser.password.trim())) {
+      const passwordValidation = validatePassword(currentUser.password);
+      if (!passwordValidation.isValid) {
+        errors.password = passwordValidation.error;
+      }
+    }
+
     return errors;
   };
 
@@ -111,16 +136,16 @@ function UserManagementPage() {
       setValidationErrors(errors);
       return;
     }
-    
+
     setValidationErrors({});
-    
+
     try {
       // Remove hyphens from phone number before sending
       const userData = {
         ...currentUser,
-        phone_no: currentUser.phone_no.replace(/-/g, '')
+        phone_no: (currentUser.phone_no || '').replace(/-/g, '')
       };
-      
+
       if (isEditing) {
         await api.put(`/users/${currentUser.user_id}`, userData);
       } else {
@@ -133,16 +158,16 @@ function UserManagementPage() {
       setError(err.response?.data?.message || 'שמירת המשתמש נכשלה.');
     }
   };
-  
+
   const handleDeactivate = async (userId) => {
     if (window.confirm('האם אתה בטוח שברצונך להשבית משתמש זה?')) {
-        try {
-            await api.delete(`/users/${userId}`);
-            fetchUsers();
-        } catch (err) {
-            console.error("Error deactivating user:", err);
-            alert('השבתת המשתמש נכשלה.');
-        }
+      try {
+        await api.delete(`/users/${userId}`);
+        fetchUsers();
+      } catch (err) {
+        console.error("Error deactivating user:", err);
+        alert('השבתת המשתמש נכשלה.');
+      }
     }
   };
 
@@ -175,9 +200,9 @@ function UserManagementPage() {
           <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200 mb-6">
             <h3 className="text-xl font-bold text-gray-800 mb-4 pb-2 border-b">חיפוש משתמשים</h3>
             <div className="flex flex-col sm:flex-row gap-3 items-stretch">
-              <Select 
-                value={searchCriteria} 
-                onChange={(e) => setSearchCriteria(e.target.value)} 
+              <Select
+                value={searchCriteria}
+                onChange={(e) => setSearchCriteria(e.target.value)}
                 options={[
                   { value: 'name', label: 'לפי שם' },
                   { value: 'email', label: 'לפי אימייל' }
@@ -186,8 +211,8 @@ function UserManagementPage() {
                 className="sm:w-40"
               />
 
-              <Input 
-                type="text" 
+              <Input
+                type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={searchCriteria === 'name' ? 'הקלד שם משתמש...' : 'הקלד אימייל...'}
@@ -197,8 +222,8 @@ function UserManagementPage() {
                 onClear={handleClearSearch}
               />
 
-              <Button 
-                onClick={handleSearch} 
+              <Button
+                onClick={handleSearch}
                 variant="primary"
                 className="whitespace-nowrap sm:w-auto w-full"
               >
@@ -227,13 +252,13 @@ function UserManagementPage() {
                     <td className="py-2 px-3">{user.status === 'active' ? 'פעיל' : 'לא פעיל'}</td>
                     <td className="py-2 px-3">
                       <div className="flex gap-2">
-                          <Button size="sm" variant="outline" onClick={() => handleOpenModal(user)}>ערוך</Button>
-                          {user.status === 'active' && 
+                        <Button size="sm" variant="outline" onClick={() => handleOpenModal(user)}>ערוך</Button>
+                        {user.status === 'active' &&
                           <>
-                              <Button size="sm" variant="danger" onClick={() => handleDeactivate(user.user_id)}>השבת</Button>
-                              <Button size="sm" variant="secondary" onClick={() => handlePasswordReset(user.user_id)}>שלח איפוס</Button>
+                            <Button size="sm" variant="danger" onClick={() => handleDeactivate(user.user_id)}>השבת</Button>
+                            <Button size="sm" variant="secondary" onClick={() => handlePasswordReset(user.user_id)}>שלח איפוס</Button>
                           </>
-                          }
+                        }
                       </div>
                     </td>
                   </tr>
@@ -244,8 +269,8 @@ function UserManagementPage() {
         </>
       )}
 
-      <Modal 
-        isOpen={isModalOpen} 
+      <Modal
+        isOpen={isModalOpen}
         onClose={handleCloseModal}
         title={isEditing ? 'עריכת משתמש' : 'הוספת משתמש חדש'}
         size="md"
@@ -258,47 +283,50 @@ function UserManagementPage() {
       >
         {currentUser && (
           <div className="space-y-4">
-            <Input 
-              name="first_name" 
-              label="שם פרטי" 
-              value={currentUser.first_name || ''} 
-              onChange={handleChange} 
-              required 
+            <Input
+              name="first_name"
+              label="שם פרטי"
+              value={currentUser.first_name || ''}
+              onChange={handleChange}
+              required
+              error={validationErrors.first_name}
             />
-            <Input 
-              name="surname" 
-              label="שם משפחה" 
-              value={currentUser.surname || ''} 
-              onChange={handleChange} 
-              required 
+            <Input
+              name="surname"
+              label="שם משפחה"
+              value={currentUser.surname || ''}
+              onChange={handleChange}
+              required
+              error={validationErrors.surname}
             />
-            <Input 
-              name="email" 
-              label="אימייל" 
-              type="email" 
-              value={currentUser.email || ''} 
-              onChange={handleChange} 
-              required 
+            <Input
+              name="email"
+              label="אימייל"
+              type="email"
+              value={currentUser.email || ''}
+              onChange={handleChange}
+              required
               disabled={isEditing}
               error={validationErrors.email}
             />
-            <Input 
-              name="phone_no" 
-              label="טלפון" 
-              value={currentUser.phone_no || ''} 
-              onChange={handleChange} 
+            <Input
+              name="phone_no"
+              label="טלפון"
+              value={currentUser.phone_no || ''}
+              onChange={handleChange}
               required
               error={validationErrors.phone_no}
-              helperText="ניתן להזין מקפים, לדוגמה: 052-828-1234"
+              helperText="נייד (10 ספרות) או נייח (9 ספרות). ניתן להשתמש במקפים."
             />
             {!isEditing && (
-              <Input 
-                name="password" 
-                label="סיסמה" 
-                type="password" 
-                value={currentUser.password || ''} 
-                onChange={handleChange} 
-                required 
+              <Input
+                name="password"
+                label="סיסמה"
+                type="password"
+                value={currentUser.password || ''}
+                onChange={handleChange}
+                required
+                error={validationErrors.password}
               />
             )}
             <Select

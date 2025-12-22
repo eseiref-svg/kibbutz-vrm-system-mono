@@ -5,7 +5,7 @@ const TransactionsWidget = forwardRef(({ branchId, supplierTransactions }, ref) 
   const [sales, setSales] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState('incoming'); // incoming (לקבל) or outgoing (לשלם)
+  const [activeTab, setActiveTab] = useState('incoming'); // incoming or outgoing
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'desc' });
   const [statusFilter, setStatusFilter] = useState('all');
 
@@ -42,15 +42,15 @@ const TransactionsWidget = forwardRef(({ branchId, supplierTransactions }, ref) 
   const getStatusLabel = (status) => {
     switch (status) {
       case 'pending_approval':
-        return { text: 'ממתין לאישור', color: 'bg-yellow-100 text-yellow-800', icon: '🟡' };
+        return { text: 'ממתין לאישור', color: 'bg-yellow-100 text-yellow-800' };
       case 'open':
-        return { text: 'אושר - ממתין לתשלום', color: 'bg-green-100 text-green-800', icon: '🟢' };
+        return { text: 'אושר - ממתין לתשלום', color: 'bg-green-100 text-green-800' };
       case 'paid':
         return { text: 'שולם', color: 'bg-blue-100 text-blue-800', icon: '✅' };
       case 'approved':
         return { text: 'מאושר', color: 'bg-green-100 text-green-800', icon: '✅' };
       case 'pending':
-        return { text: 'ממתין', color: 'bg-yellow-100 text-yellow-800', icon: '🟡' };
+        return { text: 'ממתין', color: 'bg-yellow-100 text-yellow-800' };
       case 'rejected':
         return { text: 'נדחה', color: 'bg-red-100 text-red-800', icon: '❌' };
       default:
@@ -136,21 +136,19 @@ const TransactionsWidget = forwardRef(({ branchId, supplierTransactions }, ref) 
       <div className="flex border-b mb-4">
         <button
           onClick={() => setActiveTab('incoming')}
-          className={`px-6 py-2 font-semibold transition-colors ${
-            activeTab === 'incoming'
-              ? 'border-b-2 border-blue-500 text-blue-600'
-              : 'text-gray-600 hover:text-gray-800'
-          }`}
+          className={`px-6 py-2 font-semibold transition-colors ${activeTab === 'incoming'
+            ? 'border-b-2 border-blue-500 text-blue-600'
+            : 'text-gray-600 hover:text-gray-800'
+            }`}
         >
           לקבל מלקוחות ({sales.length})
         </button>
         <button
           onClick={() => setActiveTab('outgoing')}
-          className={`px-6 py-2 font-semibold transition-colors ${
-            activeTab === 'outgoing'
-              ? 'border-b-2 border-blue-500 text-blue-600'
-              : 'text-gray-600 hover:text-gray-800'
-          }`}
+          className={`px-6 py-2 font-semibold transition-colors ${activeTab === 'outgoing'
+            ? 'border-b-2 border-blue-500 text-blue-600'
+            : 'text-gray-600 hover:text-gray-800'
+            }`}
         >
           לשלם לספקים ({supplierTransactions?.length || 0})
         </button>
@@ -175,7 +173,7 @@ const TransactionsWidget = forwardRef(({ branchId, supplierTransactions }, ref) 
 
       {/* Content */}
       {activeTab === 'incoming' ? (
-        // Sales (לקבל)
+        // Sales
         loading ? (
           <p className="text-gray-600 text-center py-4">טוען...</p>
         ) : error ? (
@@ -189,7 +187,7 @@ const TransactionsWidget = forwardRef(({ branchId, supplierTransactions }, ref) 
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="bg-gray-100">
-                  <th 
+                  <th
                     className="py-2 px-3 text-right font-semibold cursor-pointer hover:bg-gray-200"
                     onClick={() => handleSort('client_name')}
                   >
@@ -199,7 +197,7 @@ const TransactionsWidget = forwardRef(({ branchId, supplierTransactions }, ref) 
                     </span>
                   </th>
                   <th className="py-2 px-3 text-right font-semibold">מספר לקוח</th>
-                  <th 
+                  <th
                     className="py-2 px-3 text-right font-semibold cursor-pointer hover:bg-gray-200"
                     onClick={() => handleSort('value')}
                   >
@@ -208,7 +206,7 @@ const TransactionsWidget = forwardRef(({ branchId, supplierTransactions }, ref) 
                       <SortIcon columnKey="value" />
                     </span>
                   </th>
-                  <th 
+                  <th
                     className="py-2 px-3 text-right font-semibold cursor-pointer hover:bg-gray-200"
                     onClick={() => handleSort('transaction_date')}
                   >
@@ -217,7 +215,7 @@ const TransactionsWidget = forwardRef(({ branchId, supplierTransactions }, ref) 
                       <SortIcon columnKey="transaction_date" />
                     </span>
                   </th>
-                  <th 
+                  <th
                     className="py-2 px-3 text-right font-semibold cursor-pointer hover:bg-gray-200"
                     onClick={() => handleSort('status')}
                   >
@@ -262,7 +260,7 @@ const TransactionsWidget = forwardRef(({ branchId, supplierTransactions }, ref) 
           </div>
         )
       ) : (
-        // Supplier transactions (לשלם)
+        // Supplier transactions
         !supplierTransactions || processedSupplierTransactions.length === 0 ? (
           <p className="text-gray-600 text-center py-4">{statusFilter !== 'all' ? 'אין תוצאות תואמות' : 'לא נמצאו עסקאות אחרונות עבור ענף זה.'}</p>
         ) : (
@@ -270,7 +268,7 @@ const TransactionsWidget = forwardRef(({ branchId, supplierTransactions }, ref) 
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="bg-gray-100">
-                  <th 
+                  <th
                     className="py-2 px-3 text-right font-semibold cursor-pointer hover:bg-gray-200"
                     onClick={() => handleSort('supplier_name')}
                   >
@@ -279,7 +277,7 @@ const TransactionsWidget = forwardRef(({ branchId, supplierTransactions }, ref) 
                       <SortIcon columnKey="supplier_name" />
                     </span>
                   </th>
-                  <th 
+                  <th
                     className="py-2 px-3 text-right font-semibold cursor-pointer hover:bg-gray-200"
                     onClick={() => handleSort('due_date')}
                   >
@@ -288,7 +286,7 @@ const TransactionsWidget = forwardRef(({ branchId, supplierTransactions }, ref) 
                       <SortIcon columnKey="due_date" />
                     </span>
                   </th>
-                  <th 
+                  <th
                     className="py-2 px-3 text-right font-semibold cursor-pointer hover:bg-gray-200"
                     onClick={() => handleSort('value')}
                   >
@@ -297,7 +295,7 @@ const TransactionsWidget = forwardRef(({ branchId, supplierTransactions }, ref) 
                       <SortIcon columnKey="value" />
                     </span>
                   </th>
-                  <th 
+                  <th
                     className="py-2 px-3 text-right font-semibold cursor-pointer hover:bg-gray-200"
                     onClick={() => handleSort('status')}
                   >

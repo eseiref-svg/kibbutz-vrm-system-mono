@@ -110,4 +110,5 @@ temp/
 
 # Database backups
 *.sql
+!**/migrations/*.sql
 *.db

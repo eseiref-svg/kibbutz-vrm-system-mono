@@ -1,11 +1,11 @@
 /**
  * Payment Monitoring Service
- * שירות לניטור אוטומטי של תשלומים והתראות
+ * Automatic payment monitoring and alerts service
  * 
- * תפקידים:
- * 1. סריקת חשבוניות פתוחות (status='open')
- * 2. בדיקת התקרבות למועד תשלום
- * 3. יצירת התראות אוטומטיות
+ * Roles:
+ * 1. Scan open invoices (status='open')
+ * 2. Check for upcoming payment dates
+ * 3. Create automatic alerts
  */
 
 const cron = require('node-cron');
@@ -25,7 +25,7 @@ class PaymentMonitorService {
     }
 
     cron.schedule('0 2 * * *', async () => {
-      console.log('🔍 Starting daily payment monitoring...');
+      console.log('Starting daily payment monitoring...');
       await this.performDailyCheck();
     });
 
@@ -37,25 +37,25 @@ class PaymentMonitorService {
   async performDailyCheck() {
     try {
       const startTime = Date.now();
-      
+
       const openTransactions = await this.getOpenTransactions();
-      
-      console.log(`📊 Found ${openTransactions.length} open transactions to check`);
+
+      console.log(`Found ${openTransactions.length} open transactions to check`);
 
       let alertsCreated = 0;
       let alertsUpdated = 0;
 
       for (const transaction of openTransactions) {
         const daysUntilDue = this.calculateDaysUntilDue(transaction.due_date);
-        
+
         const shouldAlert = this.shouldCreateAlert(daysUntilDue, transaction);
-        
+
         if (shouldAlert) {
           const alertResult = await alertService.createOrUpdateAlert(
             transaction,
             daysUntilDue
           );
-          
+
           if (alertResult.created) {
             alertsCreated++;
           } else if (alertResult.updated) {
@@ -65,11 +65,11 @@ class PaymentMonitorService {
       }
 
       const duration = ((Date.now() - startTime) / 1000).toFixed(2);
-      
+
       console.log(`✅ Daily check completed in ${duration}s`);
       console.log(`   - Alerts created: ${alertsCreated}`);
       console.log(`   - Alerts updated: ${alertsUpdated}`);
-      
+
       return {
         success: true,
         transactionsChecked: openTransactions.length,
@@ -77,7 +77,7 @@ class PaymentMonitorService {
         alertsUpdated,
         duration
       };
-      
+
     } catch (error) {
       console.error('❌ Error in daily payment check:', error);
       throw error;
@@ -135,10 +135,10 @@ class PaymentMonitorService {
         
         ORDER BY due_date ASC
       `;
-      
+
       const result = await db.query(query);
       return result.rows;
-      
+
     } catch (error) {
       console.error('Error fetching open transactions:', error);
       throw error;
@@ -149,39 +149,39 @@ class PaymentMonitorService {
   calculateDaysUntilDue(dueDate) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
+
     const due = new Date(dueDate);
     due.setHours(0, 0, 0, 0);
-    
+
     const diffTime = due - today;
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
+
     return diffDays;
   }
 
   shouldCreateAlert(daysUntilDue, transaction) {
 
-    
+
     if (daysUntilDue === 7) {
 
       return true;
     }
-    
+
     if (daysUntilDue === 0) {
 
       return true;
     }
-    
+
     if (daysUntilDue < 0) {
 
       return true;
     }
-    
+
     return false;
   }
 
   async runManualCheck() {
-    console.log('🔧 Running manual payment check...');
+    console.log('Running manual payment check...');
     return await this.performDailyCheck();
   }
 

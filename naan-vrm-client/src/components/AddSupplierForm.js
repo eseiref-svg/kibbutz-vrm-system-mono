@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/axiosConfig';
+import { validatePhoneNumber, validateEmail, validateRequired } from '../utils/validation';
 import Button from './shared/Button';
 import Input from './shared/Input';
 import Select from './shared/Select';
@@ -9,14 +10,15 @@ function AddSupplierForm({ open, onClose, onSupplierAdded, supplierFields, initi
   const [formData, setFormData] = useState({
     supplier_id: '',
     name: '',
-    address_id: 1, 
+    address_id: 1,
     poc_name: '',
     poc_phone: '',
     poc_email: '',
-    supplier_field_id: 1, 
-    payment_terms_id: 1, 
+    supplier_field_id: 1,
+    payment_terms_id: 1,
     status: 'pending'
   });
+  const [errors, setErrors] = useState({});
 
   // Fill form with initial data if available
   useEffect(() => {
@@ -50,12 +52,47 @@ function AddSupplierForm({ open, onClose, onSupplierAdded, supplierFields, initi
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
+    if (errors[e.target.name]) {
+      setErrors({ ...errors, [e.target.name]: '' });
+    }
   };
 
   const handleSubmit = async () => {
+    // Validation
+    const newErrors = {};
+    const requiredFields = [
+      { value: formData.supplier_id, name: 'supplier_id', label: 'מספר ח.פ. ספק' },
+      { value: formData.name, name: 'name', label: 'שם הספק' },
+      { value: formData.poc_name, name: 'poc_name', label: 'שם איש קשר' },
+      { value: formData.poc_phone, name: 'poc_phone', label: 'טלפון איש קשר' },
+      { value: formData.poc_email, name: 'poc_email', label: 'אימייל איש קשר' }
+    ];
+
+    for (const field of requiredFields) {
+      const validation = validateRequired(field.value, field.label);
+      if (!validation.isValid) {
+        newErrors[field.name] = validation.error;
+      }
+    }
+
+    const phoneValidation = validatePhoneNumber(formData.poc_phone);
+    if (!phoneValidation.isValid) {
+      newErrors.poc_phone = phoneValidation.error;
+    }
+
+    const emailValidation = validateEmail(formData.poc_email);
+    if (!emailValidation.isValid) {
+      newErrors.poc_email = emailValidation.error;
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+
     try {
       const response = await api.post('/suppliers', formData);
-      onSupplierAdded(response.data); 
+      onSupplierAdded(response.data);
       alert('✅ הספק נוסף בהצלחה!');
       onClose();
     } catch (error) {
@@ -85,24 +122,26 @@ function AddSupplierForm({ open, onClose, onSupplierAdded, supplierFields, initi
             </p>
           </div>
         )}
-        
-        <Input 
-          name="supplier_id" 
+
+        <Input
+          name="supplier_id"
           label="מספר ח.פ. ספק"
-          value={formData.supplier_id} 
-          onChange={handleChange} 
+          value={formData.supplier_id}
+          onChange={handleChange}
           required
           helperText="עד 9 ספרות"
+          error={errors.supplier_id}
         />
-        
-        <Input 
-          name="name" 
+
+        <Input
+          name="name"
           label="שם הספק"
-          value={formData.name} 
-          onChange={handleChange} 
-          required 
+          value={formData.name}
+          onChange={handleChange}
+          required
+          error={errors.name}
         />
-        
+
         <Select
           name="supplier_field_id"
           label="תחום הספק"
@@ -114,31 +153,34 @@ function AddSupplierForm({ open, onClose, onSupplierAdded, supplierFields, initi
           }))}
           required
         />
-        
-        <Input 
-          name="poc_name" 
+
+        <Input
+          name="poc_name"
           label="שם איש קשר"
-          value={formData.poc_name} 
-          onChange={handleChange} 
-          required 
-        />
-        
-        <Input 
-          name="poc_phone" 
-          label="טלפון איש קשר"
-          value={formData.poc_phone} 
-          onChange={handleChange} 
+          value={formData.poc_name}
+          onChange={handleChange}
           required
-          helperText="10 ספרות"
+          error={errors.poc_name}
         />
-        
-        <Input 
-          name="poc_email" 
+
+        <Input
+          name="poc_phone"
+          label="טלפון איש קשר"
+          value={formData.poc_phone}
+          onChange={handleChange}
+          required
+          helperText="נייד (10 ספרות) או נייח (9 ספרות)"
+          error={errors.poc_phone}
+        />
+
+        <Input
+          name="poc_email"
           label="אימייל איש קשר"
           type="email"
-          value={formData.poc_email} 
-          onChange={handleChange} 
-          required 
+          value={formData.poc_email}
+          onChange={handleChange}
+          required
+          error={errors.poc_email}
         />
       </div>
     </Modal>

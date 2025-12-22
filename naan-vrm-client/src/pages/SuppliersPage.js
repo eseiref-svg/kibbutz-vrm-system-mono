@@ -8,6 +8,7 @@ import Button from '../components/shared/Button';
 import Modal from '../components/shared/Modal';
 import Input from '../components/shared/Input';
 import Select from '../components/shared/Select';
+import { validatePhoneNumber } from '../utils/validation';
 
 function SuppliersPage() {
   const [suppliers, setSuppliers] = useState([]);
@@ -19,6 +20,7 @@ function SuppliersPage() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+  const [errors, setErrors] = useState({});
 
   const fetchSuppliers = (criteria = '', query = '') => {
     setLoading(true);
@@ -35,11 +37,11 @@ function SuppliersPage() {
         setLoading(false);
       });
   };
-  
+
   const fetchSupplierFields = () => {
     api.get('/supplier-fields')
-        .then(response => setSupplierFields(response.data))
-        .catch(error => console.error("Error fetching supplier fields", error));
+      .then(response => setSupplierFields(response.data))
+      .catch(error => console.error("Error fetching supplier fields", error));
   };
 
   useEffect(() => {
@@ -73,20 +75,37 @@ function SuppliersPage() {
       }
     }
   };
-  
+
+  const handleEditChange = (e) => {
+    const { name, value } = e.target;
+    setCurrentUser(prev => ({ ...prev, [name]: value }));
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: '' }));
+    }
+  };
+
   const handleEditClick = (supplier) => {
     setCurrentUser(supplier);
+    setErrors({});
     setIsEditing(true);
   };
 
   const handleUpdateSupplier = async () => {
     if (!currentUser) return;
+
+    // Validation
+    const phoneValidation = validatePhoneNumber(currentUser.poc_phone);
+    if (!phoneValidation.isValid) {
+      setErrors({ poc_phone: phoneValidation.error });
+      return;
+    }
+
     try {
       const response = await api.put(`/suppliers/${currentUser.supplier_id}`, currentUser);
       fetchSuppliers();
       setIsEditing(false);
       if (selectedSupplier && selectedSupplier.supplier_id === currentUser.supplier_id) {
-          setSelectedSupplier(response.data);
+        setSelectedSupplier(response.data);
       }
       setCurrentUser(null);
       alert('הספק עודכן בהצלחה');
@@ -96,17 +115,14 @@ function SuppliersPage() {
     }
   };
 
-  const handleEditChange = (e) => {
-    const { name, value } = e.target;
-    setCurrentUser(prev => ({ ...prev, [name]: value }));
-  };
+
 
   return (
     <div>
       <div className="flex justify-between items-center mb-6 pb-4 border-b-2 border-gray-200">
         <h2 className="text-3xl font-bold text-gray-800">ניהול ספקים</h2>
         {!selectedSupplier && (
-          <Button 
+          <Button
             variant="success"
             onClick={() => setShowAddForm(!showAddForm)}
           >
@@ -118,14 +134,14 @@ function SuppliersPage() {
       {showAddForm && <AddSupplierForm onSupplierAdded={handleSupplierAdded} supplierFields={supplierFields} />}
 
       {selectedSupplier ? (
-        <SupplierDetailsCard 
+        <SupplierDetailsCard
           supplier={selectedSupplier}
           onBackToList={() => setSelectedSupplier(null)}
           onEdit={handleEditClick}
         />
       ) : (
         <>
-          <SupplierSearch 
+          <SupplierSearch
             query={searchQuery}
             setQuery={setSearchQuery}
             criteria={searchCriteria}
@@ -137,10 +153,10 @@ function SuppliersPage() {
             {loading ? (
               <p>טוען נתונים...</p>
             ) : (
-              <SuppliersTable 
+              <SuppliersTable
                 suppliers={suppliers}
-                onDelete={handleDeleteSupplier} 
-                onEdit={handleEditClick} 
+                onDelete={handleDeleteSupplier}
+                onEdit={handleEditClick}
                 onRowClick={setSelectedSupplier}
               />
             )}
@@ -148,8 +164,8 @@ function SuppliersPage() {
         </>
       )}
 
-      <Modal 
-        isOpen={isEditing} 
+      <Modal
+        isOpen={isEditing}
         onClose={() => setIsEditing(false)}
         title="עריכת ספק"
         size="md"
@@ -162,30 +178,32 @@ function SuppliersPage() {
       >
         {currentUser && (
           <div className="space-y-4">
-            <Input 
-              label="שם הספק" 
-              name="name" 
-              value={currentUser.name || ''} 
-              onChange={handleEditChange} 
+            <Input
+              label="שם הספק"
+              name="name"
+              value={currentUser.name || ''}
+              onChange={handleEditChange}
             />
-            <Input 
-              label="איש קשר" 
-              name="poc_name" 
-              value={currentUser.poc_name || ''} 
-              onChange={handleEditChange} 
+            <Input
+              label="איש קשר"
+              name="poc_name"
+              value={currentUser.poc_name || ''}
+              onChange={handleEditChange}
             />
-            <Input 
-              label="טלפון" 
-              name="poc_phone" 
-              value={currentUser.poc_phone || ''} 
-              onChange={handleEditChange} 
+            <Input
+              label="טלפון"
+              name="poc_phone"
+              value={currentUser.poc_phone || ''}
+              onChange={handleEditChange}
+              error={errors.poc_phone}
+              helperText="נייד (10 ספרות) או נייח (9 ספרות)"
             />
-            <Input 
-              label="אימייל" 
+            <Input
+              label="אימייל"
               type="email"
-              name="poc_email" 
-              value={currentUser.poc_email || ''} 
-              onChange={handleEditChange} 
+              name="poc_email"
+              value={currentUser.poc_email || ''}
+              onChange={handleEditChange}
             />
             <Select
               name="supplier_field_id"
@@ -197,11 +215,11 @@ function SuppliersPage() {
                 label: field.field
               }))}
             />
-            <Input 
-              label="סטטוס" 
-              name="status" 
-              value={currentUser.status || ''} 
-              onChange={handleEditChange} 
+            <Input
+              label="סטטוס"
+              name="status"
+              value={currentUser.status || ''}
+              onChange={handleEditChange}
             />
           </div>
         )}

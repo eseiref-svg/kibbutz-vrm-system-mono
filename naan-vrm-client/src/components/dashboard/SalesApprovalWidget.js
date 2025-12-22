@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../api/axiosConfig';
 import Button from '../shared/Button';
+import { calculateDueDate, formatPaymentTerms } from '../../utils/paymentTerms';
 
 function SalesApprovalWidget() {
   const [pendingSales, setPendingSales] = useState([]);
@@ -219,14 +220,14 @@ function SalesApprovalWidget() {
                     )}
                   </td>
                 </tr>
-                
+
                 {/* Approval Form Row */}
                 {approvingId === sale.sale_id && (
                   <tr className="bg-blue-50">
                     <td colSpan="7" className="px-4 py-4">
                       <div className="space-y-4">
                         <h4 className="font-semibold text-gray-800 mb-2">פרטי אישור</h4>
-                        
+
                         {/* Client Details */}
                         <div className="bg-white p-3 rounded border border-gray-200 mb-4">
                           <h5 className="font-semibold text-gray-700 mb-2">פרטי הלקוח והעסקה:</h5>
@@ -260,7 +261,7 @@ function SalesApprovalWidget() {
                             </div>
                           </div>
                         </div>
-                        
+
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -278,6 +279,11 @@ function SalesApprovalWidget() {
                               <option value="current_35">שוטף 35+ (35 ימים)</option>
                               <option value="current_50">שוטף 50+ (50 ימים) - ברירת מחדל</option>
                             </select>
+                            {/* Display calculated date */}
+                            <div className="mt-2 text-sm text-blue-700 bg-blue-50 p-2 rounded border border-blue-100">
+                              <span className="font-semibold">תאריך תשלום מחושב: </span>
+                              {calculateDueDate(sale.transaction_date, approvalData.payment_terms)?.toLocaleDateString('he-IL')}
+                            </div>
                           </div>
 
                           <div>
@@ -321,7 +327,7 @@ function SalesApprovalWidget() {
                     <td colSpan="7" className="px-4 py-4">
                       <div className="space-y-4">
                         <h4 className="font-semibold text-red-800 mb-2">דחיית דרישת תשלום</h4>
-                        
+
                         <div className="bg-white p-3 rounded border border-red-200">
                           <label className="block text-sm font-medium text-gray-700 mb-2">
                             סיבת הדחייה * <span className="text-red-600">(חובה)</span>
@@ -358,7 +364,7 @@ function SalesApprovalWidget() {
           </tbody>
         </table>
       </div>
-    </div>
+    </div >
   );
 }
 

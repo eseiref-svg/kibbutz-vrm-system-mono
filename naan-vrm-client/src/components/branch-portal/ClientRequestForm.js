@@ -3,6 +3,7 @@ import api from '../../api/axiosConfig';
 import Button from '../shared/Button';
 import Modal from '../shared/Modal';
 import Input from '../shared/Input';
+import { validatePhoneNumber, validateEmail, validateRequired } from '../../utils/validation';
 
 function ClientRequestForm({ open, onClose, onSuccess, branchId }) {
   const [formData, setFormData] = useState({
@@ -15,7 +16,7 @@ function ClientRequestForm({ open, onClose, onSuccess, branchId }) {
     house_no: '',
     zip_code: ''
   });
-  
+
   const [error, setError] = useState('');
   const [validationErrors, setValidationErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
@@ -52,33 +53,31 @@ function ClientRequestForm({ open, onClose, onSuccess, branchId }) {
 
   const validateForm = () => {
     const errors = {};
-    
-    if (!formData.client_name || !formData.client_name.trim()) {
-      errors.client_name = 'שם הלקוח הוא שדה חובה';
-    }
-    
-    if (!formData.poc_name || !formData.poc_name.trim()) {
-      errors.poc_name = 'שם איש הקשר הוא שדה חובה';
-    }
-    
-    // Phone validation - required, exactly 10 digits
-    if (!formData.poc_phone || !formData.poc_phone.trim()) {
-      errors.poc_phone = 'טלפון איש קשר הוא שדה חובה';
-    } else {
-      const phoneDigits = formData.poc_phone.replace(/-/g, '');
-      if (!/^\d{10}$/.test(phoneDigits)) {
-        errors.poc_phone = 'מספר טלפון חייב להכיל בדיוק 10 ספרות';
+
+    const requiredFields = [
+      { value: formData.client_name, name: 'client_name', label: 'שם הלקוח' },
+      { value: formData.poc_name, name: 'poc_name', label: 'שם איש הקשר' }
+    ];
+
+    for (const field of requiredFields) {
+      const validation = validateRequired(field.value, field.label);
+      if (!validation.isValid) {
+        errors[field.name] = validation.error;
       }
     }
-    
-    // Email validation - English letters only and valid format (only if provided)
-    if (formData.poc_email && formData.poc_email.trim()) {
-      const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-      if (!emailRegex.test(formData.poc_email)) {
-        errors.poc_email = 'כתובת אימייל לא תקינה. יש להשתמש באותיות אנגלית בלבד';
-      }
+
+    // Phone validation
+    const phoneValidation = validatePhoneNumber(formData.poc_phone);
+    if (!phoneValidation.isValid) {
+      errors.poc_phone = phoneValidation.error;
     }
-    
+
+    // Email validation
+    const emailValidation = validateEmail(formData.poc_email);
+    if (!emailValidation.isValid) {
+      errors.poc_email = emailValidation.error;
+    }
+
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -86,21 +85,21 @@ function ClientRequestForm({ open, onClose, onSuccess, branchId }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    
+
     if (!validateForm()) {
       return;
     }
-    
+
     setSubmitting(true);
-    
+
     try {
       const requestData = {
         branch_id: branchId,
         ...formData
       };
-      
+
       await api.post('/client-requests', requestData);
-      
+
       onSuccess();
       onClose();
       resetForm();
@@ -129,7 +128,7 @@ function ClientRequestForm({ open, onClose, onSuccess, branchId }) {
         {/* Client Details */}
         <div className="space-y-4">
           <h4 className="font-semibold text-gray-800 border-b pb-2">פרטי הלקוח</h4>
-          
+
           <Input
             name="client_name"
             label="שם הלקוח *"
@@ -156,6 +155,7 @@ function ClientRequestForm({ open, onClose, onSuccess, branchId }) {
               onChange={handleChange}
               error={validationErrors.poc_phone}
               required
+              helperText="נייד (10 ספרות) או נייח (9 ספרות)"
             />
           </div>
 

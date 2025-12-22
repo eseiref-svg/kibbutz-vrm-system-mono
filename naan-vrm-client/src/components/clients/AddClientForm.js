@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import api from '../../api/axiosConfig';
+import { validatePhoneNumber, validateEmail, validateRequired } from '../../utils/validation';
 
 function AddClientForm({ onClientAdded }) {
   const [formData, setFormData] = useState({
@@ -26,8 +27,31 @@ function AddClientForm({ onClientAdded }) {
     setError('');
     setLoading(true);
 
-    if (!formData.name || !formData.poc_name || !formData.poc_phone) {
-      setError('שם הלקוח, שם איש הקשר וטלפון הם שדות חובה');
+    const requiredFields = [
+      { value: formData.name, name: 'שם הלקוח' },
+      { value: formData.poc_name, name: 'שם איש קשר' },
+      { value: formData.poc_phone, name: 'טלפון' }
+    ];
+
+    for (const field of requiredFields) {
+      const validation = validateRequired(field.value, field.name);
+      if (!validation.isValid) {
+        setError(validation.error);
+        setLoading(false);
+        return;
+      }
+    }
+
+    const phoneValidation = validatePhoneNumber(formData.poc_phone);
+    if (!phoneValidation.isValid) {
+      setError(phoneValidation.error);
+      setLoading(false);
+      return;
+    }
+
+    const emailValidation = validateEmail(formData.poc_email);
+    if (!emailValidation.isValid) {
+      setError(emailValidation.error);
       setLoading(false);
       return;
     }
@@ -56,7 +80,7 @@ function AddClientForm({ onClientAdded }) {
     <div className="bg-white rounded-xl shadow-lg p-6 mb-6 border border-gray-200">
       <h3 className="text-xl font-bold text-gray-800 mb-4">הוספת לקוח חדש</h3>
       {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">{error}</div>}
-      
+
       <form onSubmit={handleSubmit}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
@@ -93,6 +117,7 @@ function AddClientForm({ onClientAdded }) {
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
+            <p className="text-xs text-gray-500 mt-1">נייד (10 ספרות) או נייח (9 ספרות)</p>
           </div>
 
           <div>
@@ -155,6 +180,7 @@ function AddClientForm({ onClientAdded }) {
 }
 
 export default AddClientForm;
+
 
 
 

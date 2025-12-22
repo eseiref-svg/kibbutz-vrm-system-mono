@@ -1,16 +1,18 @@
-import React from 'react';
+import React, { useState } from 'react';
 import api from '../../api/axiosConfig';
 import Button from '../shared/Button';
 import { useNotifications } from '../../context/NotificationContext';
+import RequestDetailsModal from './RequestDetailsModal';
 
 function SupplierRequestsWidget({ requests, onUpdateRequest, onApproveRequest }) {
   const { triggerRefresh } = useNotifications();
+  const [selectedRequest, setSelectedRequest] = useState(null);
 
   const handleReject = async (requestId) => {
     if (!window.confirm('האם אתה בטוח שברצונך לדחות את הבקשה?')) {
       return;
     }
-    
+
     try {
       await api.put(`/supplier-requests/${requestId}`, { status: 'rejected' });
       onUpdateRequest(requestId);
@@ -21,6 +23,24 @@ function SupplierRequestsWidget({ requests, onUpdateRequest, onApproveRequest })
       const errorMessage = error.response?.data?.message || 'שגיאה בלתי צפויה';
       alert(`❌ הפעולה נכשלה.\n\nפרטי השגיאה: ${errorMessage}`);
     }
+  };
+
+  const handleRowClick = (request) => {
+    setSelectedRequest(request);
+  };
+
+  const handleCloseDetails = () => {
+    setSelectedRequest(null);
+  };
+
+  const handleApproveFromModal = (request) => {
+    onApproveRequest(request);
+    handleCloseDetails();
+  };
+
+  const handleRejectFromModal = (requestId) => {
+    handleReject(requestId);
+    handleCloseDetails();
   };
 
   if (!requests || requests.length === 0) {
@@ -48,21 +68,25 @@ function SupplierRequestsWidget({ requests, onUpdateRequest, onApproveRequest })
           </thead>
           <tbody>
             {requests.map(req => (
-              <tr key={req.request_id} className="border-b hover:bg-gray-50">
+              <tr
+                key={req.request_id}
+                className="border-b hover:bg-gray-50 cursor-pointer transition-colors"
+                onClick={() => handleRowClick(req)}
+              >
                 <td className="py-2 px-3">{req.supplier_name}</td>
                 <td className="py-2 px-3">{req.requested_by}</td>
                 <td className="py-2 px-3">{req.branch_name}</td>
                 <td className="py-2 px-3">{new Date(req.created_at).toLocaleDateString('he-IL')}</td>
                 <td className="py-2 px-3">
-                  <div className="flex justify-center gap-2">
-                    <Button 
+                  <div className="flex justify-center gap-2" onClick={(e) => e.stopPropagation()}>
+                    <Button
                       size="sm"
                       variant="success"
                       onClick={() => onApproveRequest(req)}
                     >
                       אשר
                     </Button>
-                    <Button 
+                    <Button
                       size="sm"
                       variant="danger"
                       onClick={() => handleReject(req.request_id)}
@@ -76,6 +100,16 @@ function SupplierRequestsWidget({ requests, onUpdateRequest, onApproveRequest })
           </tbody>
         </table>
       </div>
+
+
+      <RequestDetailsModal
+        isOpen={!!selectedRequest}
+        onClose={handleCloseDetails}
+        data={selectedRequest}
+        type="supplier"
+        onApprove={handleApproveFromModal}
+        onReject={handleRejectFromModal}
+      />
     </div>
   );
 }

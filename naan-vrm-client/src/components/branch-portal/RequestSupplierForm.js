@@ -4,7 +4,7 @@ import Button from '../shared/Button';
 import Modal from '../shared/Modal';
 import Input from '../shared/Input';
 import Select from '../shared/Select';
-
+import { validatePhoneNumber, validateEmail, validateRequired } from '../../utils/validation';
 function RequestSupplierForm({ open, onClose, onSuccess, userId, branchId }) {
   const [formData, setFormData] = useState({
     supplier_id: '',
@@ -42,30 +42,40 @@ function RequestSupplierForm({ open, onClose, onSuccess, userId, branchId }) {
 
   const validateForm = () => {
     const errors = {};
-    
-    // Supplier ID validation - required, up to 9 digits
-    if (!formData.supplier_id || !formData.supplier_id.trim()) {
-      errors.supplier_id = 'מספר ח.פ. הוא שדה חובה';
-    } else if (!/^\d{1,9}$/.test(formData.supplier_id.trim())) {
-      errors.supplier_id = 'מספר ח.פ. חייב להכיל עד 9 ספרות';
+
+    const requiredFields = [
+      { value: formData.supplier_name, name: 'supplier_name', label: 'שם הספק' },
+      { value: formData.supplier_id, name: 'supplier_id', label: 'מספר ח.פ. ספק' },
+      { value: formData.poc_name, name: 'poc_name', label: 'שם איש קשר' },
+      { value: formData.poc_phone, name: 'poc_phone', label: 'טלפון איש קשר' }
+    ];
+
+    if (!selectedField) {
+      errors.selectedField = 'תחום הספק הוא שדה חובה';
     }
-    
-    // Email validation - English letters only and valid format (only if provided)
-    if (formData.poc_email && formData.poc_email.trim()) {
-      const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-      if (!emailRegex.test(formData.poc_email)) {
-        errors.poc_email = 'כתובת אימייל לא תקינה. יש להשתמש באותיות אנגלית בלבד';
+    if (selectedField === 'new' && !newField) {
+      errors.new_field = 'שם התחום החדש הוא שדה חובה';
+    }
+
+    for (const field of requiredFields) {
+      const validation = validateRequired(field.value, field.label);
+      if (!validation.isValid) {
+        errors[field.name] = validation.error;
       }
     }
-    
-    // Phone validation - exactly 10 digits (only if provided)
-    if (formData.poc_phone && formData.poc_phone.trim()) {
-      const phoneDigits = formData.poc_phone.replace(/-/g, '');
-      if (!/^\d{10}$/.test(phoneDigits)) {
-        errors.poc_phone = 'מספר טלפון חייב להכיל בדיוק 10 ספרות';
-      }
+
+    // Phone validation
+    const phoneValidation = validatePhoneNumber(formData.poc_phone);
+    if (!phoneValidation.isValid) {
+      errors.poc_phone = phoneValidation.error;
     }
-    
+
+    // Email validation
+    const emailValidation = validateEmail(formData.poc_email);
+    if (!emailValidation.isValid) {
+      errors.poc_email = emailValidation.error;
+    }
+
     return errors;
   };
 
@@ -76,10 +86,10 @@ function RequestSupplierForm({ open, onClose, onSuccess, userId, branchId }) {
       setValidationErrors(errors);
       return;
     }
-    
+
     setValidationErrors({});
     setError('');
-    
+
     try {
       await api.post('/supplier-requests', {
         ...formData,
@@ -96,8 +106,8 @@ function RequestSupplierForm({ open, onClose, onSuccess, userId, branchId }) {
   };
 
   return (
-    <Modal 
-      isOpen={open} 
+    <Modal
+      isOpen={open}
       onClose={onClose}
       title="בקשה להוספת ספק חדש"
       size="md"
@@ -109,25 +119,26 @@ function RequestSupplierForm({ open, onClose, onSuccess, userId, branchId }) {
       }
     >
       <div className="space-y-4">
-        <Input 
-          autoFocus 
-          name="supplier_name" 
-          label="שם הספק" 
+        <Input
+          autoFocus
+          name="supplier_name"
+          label="שם הספק"
           value={formData.supplier_name}
-          onChange={handleChange} 
-          required 
+          onChange={handleChange}
+          required
+          error={validationErrors.supplier_name}
         />
-        
-        <Input 
-          name="supplier_id" 
-          label="מספר ח.פ. ספק" 
+
+        <Input
+          name="supplier_id"
+          label="מספר ח.פ. ספק"
           value={formData.supplier_id}
-          onChange={handleChange} 
+          onChange={handleChange}
           required
           error={validationErrors.supplier_id}
           helperText="עד 9 ספרות"
         />
-        
+
         <Select
           label="תחום הספק"
           value={selectedField}
@@ -140,37 +151,40 @@ function RequestSupplierForm({ open, onClose, onSuccess, userId, branchId }) {
             }))
           ]}
           required
+          error={validationErrors.selectedField}
         />
 
         {selectedField === 'new' && (
-          <Input 
-            name="new_field" 
-            label="שם התחום החדש" 
+          <Input
+            name="new_field"
+            label="שם התחום החדש"
             value={newField}
-            onChange={(e) => setNewField(e.target.value)} 
-            required 
+            onChange={(e) => setNewField(e.target.value)}
+            required
+            error={validationErrors.new_field}
           />
         )}
 
-        <Input 
-          name="poc_name" 
-          label="שם איש קשר" 
+        <Input
+          name="poc_name"
+          label="שם איש קשר"
           value={formData.poc_name}
           onChange={handleChange}
           required
+          error={validationErrors.poc_name}
         />
-        <Input 
-          name="poc_email" 
-          label="אימייל איש קשר" 
-          type="email" 
+        <Input
+          name="poc_email"
+          label="אימייל איש קשר"
+          type="email"
           value={formData.poc_email}
           onChange={handleChange}
           error={validationErrors.poc_email}
         />
-        <Input 
-          name="poc_phone" 
-          label="טלפון איש קשר" 
-          type="tel" 
+        <Input
+          name="poc_phone"
+          label="טלפון איש קשר"
+          type="tel"
           value={formData.poc_phone}
           onChange={handleChange}
           required

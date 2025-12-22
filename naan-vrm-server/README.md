@@ -1,22 +1,22 @@
 # naan-vrm-server
 
-Backend server for the VRM System - חלק מה-monorepo `kibbutz-vrm-system-mono`
+Backend server for the VRM System - part of the `kibbutz-vrm-system-mono` monorepo.
 
-## 📍 מיקום
+## Location
 
-השרת חייב לרוץ מתוך תיקייה זו: `naan-vrm-server/`
+Server must run from this directory: `naan-vrm-server/`
 
-## 🚀 הפעלת השרת
+## Running the Server
 
-### התקנת dependencies
+### Install dependencies
 ```bash
 cd naan-vrm-server
 npm install
 ```
 
-### הגדרת משתני סביבה
+### Environment Setup
 
-צור קובץ `.env` בתיקיית `naan-vrm-server/` (או העתק מ-`.env.example`):
+Create a `.env` file in `naan-vrm-server/` (or copy from `.env.example`):
 
 ```env
 NODE_ENV=development
@@ -30,45 +30,45 @@ PORT=5000
 FRONTEND_URL=http://localhost:3000
 ```
 
-### הפעלת השרת
+### Start Server
 
 ```bash
 npm start
 ```
 
-השרת ירוץ על: `http://localhost:5000`
+Server will run on: `http://localhost:5000`
 
-## 🗄️ חיבור ל-Database
+## Database Connection
 
-השרת תומך בשתי סביבות:
+The server supports two environments:
 
-1. **Development (מקומי)**: משתמש במשתני סביבה נפרדים (`DB_HOST`, `DB_USER`, וכו')
-2. **Production (Railway)**: משתמש ב-`DATABASE_URL` (מוגדר אוטומטית על ידי Railway)
+1. **Development (Local)**: Uses separate env vars (`DB_HOST`, `DB_USER`, etc.)
+2. **Production (Railway)**: Uses `DATABASE_URL` (automatically set by Railway)
 
-הקובץ `db.js` בודק אוטומטית איזו סביבה פעילה ומתחבר בהתאם.
+`db.js` automatically checks the environment and connects accordingly.
 
-## ✅ בדיקת תקינות
+## Health Check
 
-לאחר הפעלת השרת, בדוק:
-- הודעת "✅ חיבור ל-DB הצליח!" בקונסול
-- גש ל-`http://localhost:5000/health` לקבלת אישור שהשרת והמסד נתונים פעילים
+After starting the server, check:
+- "Connected to DB" message in console
+- Access `http://localhost:5000/health` to confirm server is up
 
-## 📂 מבנה התיקייה
+## Directory Structure
 
 ```
 naan-vrm-server/
-├── server.js              # קובץ השרת הראשי
-├── db.js                  # תצורת חיבור למסד נתונים
-├── package.json           # הגדרות הפרויקט
-├── .env                   # משתני סביבה (לא בקוד!)
+├── server.js              # Main entry point
+├── db.js                  # Database connection config
+├── package.json           # Project settings
+├── .env                   # Environment variables
 ├── middleware/            # Middleware (authentication)
-├── services/              # שירותים (payment monitoring, alerts)
-└── migrations/            # migrations למסד הנתונים
+├── services/              # Services (payment monitoring, alerts)
+└── migrations/            # DB migrations
 ```
 
-## ⚠️ חשוב!
+## Important!
 
-- השרת **חייב** לרוץ מתוך תיקיית `naan-vrm-server/`
-- קובץ ה-`.env` חייב להיות בתיקיית `naan-vrm-server/`
-- אל תעלה את קובץ ה-`.env` ל-git!
+- Server **MUST** run from `naan-vrm-server/`
+- `.env` file must be in `naan-vrm-server/`
+- Do not commit `.env` to git!
 

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../api/axiosConfig';
 import InfoCard from '../components/dashboard/InfoCard';
+import BankBalanceWidget from '../components/dashboard/BankBalanceWidget';
 import CashFlowChart from '../components/dashboard/CashFlowChart';
 import ExpensesChart from '../components/dashboard/ExpensesChart';
 import SupplierRequestsWidget from '../components/dashboard/SupplierRequestsWidget';
@@ -12,10 +13,13 @@ import ApproveClientModal from '../components/dashboard/ApproveClientModal';
 import Button from '../components/shared/Button';
 import Select from '../components/shared/Select';
 import { useNotifications } from '../context/NotificationContext';
+import { useAuth } from '../context/AuthContext';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 
 function DashboardPage() {
+  const { user } = useAuth();
+  const isCommunityManager = user?.role_id === 5;
   const { triggerRefresh } = useNotifications();
   const [summaryData, setSummaryData] = useState(null);
   const [requests, setRequests] = useState([]);
@@ -115,7 +119,7 @@ function DashboardPage() {
   const handleExportPDF = () => {
     if (!summaryData) return;
     const doc = new jsPDF();
-    
+
     doc.addFont('arial', 'Arial', 'normal');
     doc.setFont('arial');
 
@@ -139,81 +143,80 @@ function DashboardPage() {
   return (
     <div>
       <div className="flex justify-between items-center mb-6 pb-4 border-b-2 border-gray-200">
-        <h2 className="text-3xl font-bold text-gray-800">לוח מחוונים - גזבר/ית</h2>
+        <h2 className="text-3xl font-bold text-gray-800">
+          {isCommunityManager ? 'לוח מחוונים - מנהל קהילה' : 'לוח מחוונים - גזבר/ית'}
+        </h2>
         <div className="flex items-center gap-4">
-            <Select
-              value={period}
-              onChange={(e) => setPeriod(e.target.value)}
-              options={[
-                { value: 'monthly', label: 'תצוגה חודשית' },
-                { value: 'quarterly', label: 'תצוגה רבעונית' },
-                { value: 'annual', label: 'תצוגה שנתית' }
-              ]}
-              fullWidth={false}
-              className="min-w-[180px]"
-            />
-            <Button variant="success" onClick={handleExportPDF}>
-              ייצוא ל-PDF
-            </Button>
+          <Select
+            value={period}
+            onChange={(e) => setPeriod(e.target.value)}
+            options={[
+              { value: 'monthly', label: 'תצוגה חודשית' },
+              { value: 'quarterly', label: 'תצוגה רבעונית' },
+              { value: 'annual', label: 'תצוגה שנתית' }
+            ]}
+            fullWidth={false}
+            className="min-w-[180px]"
+          />
+          <Button variant="success" onClick={handleExportPDF}>
+            ייצוא ל-PDF
+          </Button>
         </div>
       </div>
 
       {loading && <p>טוען נתונים...</p>}
       {error && <p className="text-red-500">{error}</p>}
-      
+
       {!loading && !error && summaryData && (
         <div className="space-y-8">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                <InfoCard title="יתרות בנקים (₪)">
-                  <div className="text-4xl font-extrabold text-green-600">₪12,350,000</div>
-                  <p className="text-gray-600 text-sm mt-1">נתון סטטי לדוגמה</p>
-                </InfoCard>
-                <InfoCard title="תזרים מזומנים (לתקופה)">
-                  <CashFlowChart />
-                </InfoCard>
-                <InfoCard title="הוצאות לפי ענפים (לתקופה)">
-                  <Link to="/reports" className="block hover:bg-gray-50 p-2 rounded transition-colors">
-                    <ExpensesChart data={summaryData.expensesByBranch} />
-                    <div className="text-blue-600 text-sm mt-2 font-medium">לחץ לפרטים נוספים →</div>
-                  </Link>
-                </InfoCard>
-                <InfoCard title="מעקב תשלומים">
-                    <Link to="/payments" className="block hover:bg-gray-50 p-2 rounded transition-colors">
-                        <div className="text-3xl font-extrabold text-blue-700">₪{parseFloat(summaryData.totalSupplierBalance).toLocaleString('he-IL')}</div>
-                        <p className="text-gray-600 text-sm my-2">יתרה לתשלום (לתקופה)</p>
-                        <div className="text-red-600 font-bold">{summaryData.overdueInvoices} חשבוניות בחריגה</div>
-                        <div className="text-blue-600 text-sm mt-2 font-medium">לחץ לפרטים נוספים →</div>
-                    </Link>
-                </InfoCard>
-            </div>
-            <SupplierRequestsWidget 
-              requests={requests} 
-              onUpdateRequest={handleRequestUpdate}
-              onApproveRequest={handleApproveRequest}
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <BankBalanceWidget />
+            <InfoCard title="תזרים מזומנים (לתקופה)">
+              <CashFlowChart />
+            </InfoCard>
+            <InfoCard title="הוצאות לפי ענפים (לתקופה)">
+              <Link to="/reports" className="block hover:bg-gray-50 p-2 rounded transition-colors">
+                <ExpensesChart data={summaryData.expensesByBranch} />
+                <div className="text-blue-600 text-sm mt-2 font-medium">לחץ לפרטים נוספים →</div>
+              </Link>
+            </InfoCard>
+            <InfoCard title="מעקב תשלומים">
+              <Link to="/payments" className="block hover:bg-gray-50 p-2 rounded transition-colors">
+                <div className="text-3xl font-extrabold text-blue-700">₪{parseFloat(summaryData.totalSupplierBalance).toLocaleString('he-IL')}</div>
+                <p className="text-gray-600 text-sm my-2">יתרה לתשלום (לתקופה)</p>
+                <div className="text-red-600 font-bold">{summaryData.overdueInvoices} חשבוניות בחריגה</div>
+                <div className="text-blue-600 text-sm mt-2 font-medium">לחץ לפרטים נוספים →</div>
+              </Link>
+            </InfoCard>
+          </div>
+          <SupplierRequestsWidget
+            requests={requests}
+            onUpdateRequest={handleRequestUpdate}
+            onApproveRequest={handleApproveRequest}
+          />
 
-            <ClientRequestsWidget 
-              requests={clientRequests} 
-              onUpdateRequest={handleClientRequestUpdate}
-              onApproveRequest={handleApproveClientRequest}
-            />
+          <ClientRequestsWidget
+            requests={clientRequests}
+            onUpdateRequest={handleClientRequestUpdate}
+            onApproveRequest={handleApproveClientRequest}
+          />
 
-            <SalesApprovalWidget />
-        
-            <AddSupplierForm
-              open={showAddSupplierForm}
-              onClose={handleCloseAddSupplierForm}
-              onSupplierAdded={handleSupplierAdded}
-              supplierFields={supplierFields}
-              initialData={selectedRequest}
-            />
+          <SalesApprovalWidget />
 
-            <ApproveClientModal
-              isOpen={showApproveClientModal}
-              onClose={handleCloseApproveClientModal}
-              clientRequest={selectedClientRequest}
-              onApprove={handleConfirmApproveClient}
-            />
+          <AddSupplierForm
+            open={showAddSupplierForm}
+            onClose={handleCloseAddSupplierForm}
+            onSupplierAdded={handleSupplierAdded}
+            supplierFields={supplierFields}
+            initialData={selectedRequest}
+          />
+
+          <ApproveClientModal
+            isOpen={showApproveClientModal}
+            onClose={handleCloseApproveClientModal}
+            clientRequest={selectedClientRequest}
+            onApprove={handleConfirmApproveClient}
+          />
         </div>
       )}
     </div>

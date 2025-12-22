@@ -4,59 +4,30 @@
 
 ---
 
-## 📦 Version 2.2.0 - Client Management & QA Improvements
-**Release Date:** 12/11/2025  
-**Type:** Feature Enhancement & Code Cleanup
+## 📦 Version 2.2.0 - Payment Logic & UX Enhancements
+**Release Date:** 22/12/2025  
+**Type:** Feature Enhancement
 
 ### 🎯 מה השתנה?
 
-#### 🆕 ווידג'טים חדשים בפורטל הסניפים
-- **RecentSalesWidget** - תצוגת דרישות תשלום אחרונות
-  - טבלה מסודרת עם סטטוסים ויזואליים
-  - תצוגת לקוח, מספר לקוח, סכום ותאריך עסקה
-  - סטטוסים: ממתין לאישור, אושר - ממתין לתשלום, שולם
-  
-- **TransactionsWidget** - ווידג'ט תנועות כספיות מתקדם
-  - תצוגה דו-כיוונית: תנועות נכנסות (לקבל) ויוצאות (לשלם)
-  - מיון דינמי לפי עמודות (תאריך, סכום, סטטוס)
-  - סינון לפי סטטוס
-  - רענון דינמי מה-parent component
+#### � מנגנון תשלומים חכם (Smart Payments)
+- **חישוב מע״מ אוטומטי** - המערכת מחשבת אוטומטית 18% מע״מ בעת יצירת מכירה/דרישת תשלום.
+- **תנאי תשלום מתקדמים** - תמיכה מלאה בתנאי תשלום (שוטף+15, +30, +45, +60, +90).
+- **חישוב מועד פירעון (Payment Cycle Logic)** - אלגוריתם חכם המחשב את תאריך הפירעון הסופי לפי מחזורי התשלום של הקיבוץ (ה-5 או ה-20 לחודש) הקרובים ביותר לאחר ימי האשראי.
 
-#### 📚 תיעוד QA מקיף
-- **QA_PLAN_CLIENT_MANAGEMENT.md** - תוכנית בדיקות לניהול לקוחות
-- **QA_PLAN_NEW_CLIENT_SALES_FLOW.md** - תוכנית בדיקות לזרימת מכירות לקוח חדש
-- **QA_PLAN_SALES_APPROVAL.md** - תוכנית בדיקות לאישור מכירות
-- **QA_TEST_PLAN_UPDATED.md** - תוכנית בדיקות מעודכנת
-- **TESTING_PLAN_FIXES.md** - תיקונים בתוכנית הבדיקות
-- **TESTING_SUMMARY.md** - סיכום בדיקות
-- **QUICK_TEST_GUIDE.md** - מדריך בדיקות מהיר
-- **CLIENT_PAYMENT_TERMS_MODULES.md** - תיעוד מודולי תנאי תשלום ללקוחות
-- **NOTIFICATIONS_IMPROVEMENTS.md** - שיפורי מערכת התראות
-- **FIX_SERVER_RESTART.md** - תיעוד תיקון הפעלה מחדש של השרת
+#### �📊 שדרוג דשבורד גזבר (Treasurer Dashboard)
+- **וידג'טים חדשים** - הוחלפו קוביות הסטטיסטיקה הכלליות בשלושה מדדים ממוקדים לניהול תזרים:
+  - **חשבוניות באיחור - לתשלום**: תצוגת סך החובות לספקים שנמצאים בפיגור.
+  - **חשבוניות באיחור - לקבלה**: מעקב אחר תשלומים מלקוחות שטרם התקבלו.
+  - **מס״ב קרוב**: תאריך העברת המס״ב הקרובה (הזנה ידנית/אינטגרציה עתידית).
 
-#### 🔧 שיפורים טכניים
-- שיפורי SalesApprovalWidget - תצוגה משופרת של אישורי מכירות
-- שיפורי CreateSaleForm - יצירת מכירות משופרת
-- שיפורי ClientRequestForm - טיפול טוב יותר בבקשות לקוחות
-- שיפורי BranchClientManagement - ניהול לקוחות סניף משופר
-- שיפורי NotificationsBell - התראות משופרות
-- שיפורי PaymentFilters - סינון תשלומים משופר
-- שיפורי TransactionDetailsModal - פרטי תנועה מפורטים יותר
+#### � מערכת התראות (Notifications)
+- **יישור קו UX** - הסרת דף "היסטוריית התראות" המיותר למנהלי ענפים לטובת עבודה ממוקדת דרך ה-"פעמון" (Notification Bell) בלבד.
+- **אופטימיזציה** - שיפור מנגנון סימון "נקרא" ועדכון המונה בזמן אמת.
 
-#### 🧹 ניקוי קוד
-- הסרת 30+ קבצי סקריפטים ישנים שלא בשימוש
-- הסרת קבצי migration ישנים
-- הסרת קבצי test ישנים
-- הוספת `run-full-qa-tests.js` - סקריפט בדיקות QA מלא
-
-#### 📊 סטטיסטיקות
-- **81 קבצים** שונו
-- **3,265 שורות** נוספו
-- **4,317 שורות** הוסרו
-- ניקוי נטו של **1,052 שורות** קוד
-
-### 🏷️ Tags
-- **v2.2.0** - יציב ומוכן לייצור
+#### 👤 שיפורי ממשק נוספים
+- **זיהוי לקוח** - הצגת **מספר לקוח (Client Number)** במקום מזהה פנימי בווידג'טים של ניהול לקוחות.
+- **Code Cleanup** - הסרת הערות בעברית מהקוד לטובת סטנדרטיזציה.
 
 ---
 
@@ -71,15 +42,14 @@
 - מבנה מסודר: `naan-vrm-server/` ו-`naan-vrm-client/`
 - ניהול משותף של dependencies
 - קל יותר לדפלוי ולתחזוקה
-- ניתן לתחזק גרסאות סינכרוניות של Client ו-Server
 
 #### קבצים חדשים
-- `README.md` - מדריך ראשי מלא למערכת
+- `README.md` - מדריך ראשי למערכת
+- `OPERATION_GUIDE.md` - מדריך הפעלה מלא
 - `RELEASE_NOTES.md` - מסמך זה
 - `.gitignore` מעודכן למונורפו
 
 ### 🔄 Migration Guide
-
 לאחר ששכפלת את המונורפו החדש:
 ```bash
 cd kibbutz-vrm-system-mono
@@ -174,7 +144,7 @@ cd ../naan-vrm-client && npm install
 
 ```bash
 # 1. שכפל את המונורפו החדש
-git clone https://github.com/your-username/kibbutz-vrm-system-mono.git
+git clone https://github.com/eseiref-svg/kibbutz-vrm-system-mono.git
 cd kibbutz-vrm-system-mono
 
 # 2. העתק את הקבצים מה-repositories הישנים
@@ -194,7 +164,7 @@ npm start  # במונורפו החדש
 
 | Version | Date | Type | Summary |
 |---------|------|------|---------|
-| **2.2.0** | 12/11/2025 | Feature Enhancement | Client management improvements, QA docs, code cleanup |
+| **2.2.0** | 22/12/2025 | Feature | Smart payments, VAT, Dashboard & UX |
 | **2.1.0** | 27/10/2025 | Infrastructure | Monorepo migration |
 | **2.0.0** | 26/10/2025 | Major | Payment monitoring system |
 | **1.1.0** | 24/10/2025 | Feature | Notifications & enhancements |
@@ -210,8 +180,6 @@ npm start  # במונורפו החדש
 - 🖥️ אינטגרציה עם ERP (Priority/SAP)
 - 📊 חיזוי תזרים מזומנים
 - 🔗 API לדוחות חיצוניים
-- 🔐 Two-factor authentication
-- 📱 אפליקציית מובייל
 
 ### Known Issues
 - אין בעיות ידועות
@@ -226,6 +194,5 @@ npm start  # במונורפו החדש
 
 ---
 
-**Last Updated:** 12/11/2025  
+**Last Updated:** 22/12/2025  
 **Maintained by:** VRM Development Team
-

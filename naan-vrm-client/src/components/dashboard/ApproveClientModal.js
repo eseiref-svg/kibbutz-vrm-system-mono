@@ -3,6 +3,7 @@ import Modal from '../shared/Modal';
 import Input from '../shared/Input';
 import Select from '../shared/Select';
 import Button from '../shared/Button';
+import { validatePhoneNumber, validateEmail, validateRequired } from '../../utils/validation';
 
 function ApproveClientModal({ isOpen, onClose, clientRequest, onApprove }) {
   const [formData, setFormData] = useState({
@@ -18,7 +19,7 @@ function ApproveClientModal({ isOpen, onClose, clientRequest, onApprove }) {
     payment_terms: 'current_50', // Default: current +50 days
     review_notes: ''
   });
-  
+
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
 
@@ -50,46 +51,41 @@ function ApproveClientModal({ isOpen, onClose, clientRequest, onApprove }) {
 
   const validateForm = () => {
     const newErrors = {};
-    
-    if (!formData.client_number || !formData.client_number.trim()) {
-      newErrors.client_number = 'מספר לקוח הוא שדה חובה';
-    }
-    
-    if (!formData.client_name || !formData.client_name.trim()) {
-      newErrors.client_name = 'שם הלקוח הוא שדה חובה';
-    }
-    
-    if (!formData.poc_name || !formData.poc_name.trim()) {
-      newErrors.poc_name = 'שם איש קשר הוא שדה חובה';
-    }
-    
-    if (!formData.poc_phone || !formData.poc_phone.trim()) {
-      newErrors.poc_phone = 'טלפון הוא שדה חובה';
-    } else {
-      const phoneDigits = formData.poc_phone.replace(/-/g, '');
-      if (!/^\d{10}$/.test(phoneDigits)) {
-        newErrors.poc_phone = 'מספר טלפון חייב להכיל בדיוק 10 ספרות';
+
+    const requiredFields = [
+      { value: formData.client_number, name: 'client_number', label: 'מספר לקוח' },
+      { value: formData.client_name, name: 'client_name', label: 'שם הלקוח' },
+      { value: formData.poc_name, name: 'poc_name', label: 'שם איש קשר' }
+    ];
+
+    for (const field of requiredFields) {
+      const validation = validateRequired(field.value, field.label);
+      if (!validation.isValid) {
+        newErrors[field.name] = validation.error;
       }
     }
-    
-    if (formData.poc_email && formData.poc_email.trim()) {
-      const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-      if (!emailRegex.test(formData.poc_email)) {
-        newErrors.poc_email = 'כתובת אימייל לא תקינה';
-      }
+
+    const phoneValidation = validatePhoneNumber(formData.poc_phone);
+    if (!phoneValidation.isValid) {
+      newErrors.poc_phone = phoneValidation.error;
     }
-    
+
+    const emailValidation = validateEmail(formData.poc_email);
+    if (!emailValidation.isValid) {
+      newErrors.poc_email = emailValidation.error;
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!validateForm()) {
       return;
     }
-    
+
     setSubmitting(true);
     try {
       await onApprove(clientRequest.request_id, formData);
@@ -159,7 +155,7 @@ function ApproveClientModal({ isOpen, onClose, clientRequest, onApprove }) {
         {/* Client details */}
         <div className="space-y-4">
           <h4 className="font-semibold text-gray-800 border-b pb-2">פרטי הלקוח (ניתן לעריכה)</h4>
-          
+
           <Input
             name="client_name"
             label="שם הלקוח *"
@@ -186,6 +182,7 @@ function ApproveClientModal({ isOpen, onClose, clientRequest, onApprove }) {
               onChange={handleChange}
               error={errors.poc_phone}
               required
+              helperText="נייד (10 ספרות) או נייח (9 ספרות)"
             />
           </div>
 

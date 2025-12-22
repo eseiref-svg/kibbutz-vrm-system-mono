@@ -1,102 +1,102 @@
 # naan-vrm-client
 
-Frontend React application for the VRM System - חלק מה-monorepo `kibbutz-vrm-system-mono`
+Frontend React application for the VRM System - part of the `kibbutz-vrm-system-mono` monorepo.
 
-## 📍 מיקום
+## Location
 
-הקליינט חייב לרוץ מתוך תיקייה זו: `naan-vrm-client/`
+Client must run from this directory: `naan-vrm-client/`
 
-## 🚀 הפעלת הקליינט
+## Running the Client
 
-### התקנת dependencies
+### Install dependencies
 ```bash
 cd naan-vrm-client
 npm install
 ```
 
-### הגדרת משתני סביבה
+### Environment Setup
 
-צור קובץ `.env` בתיקיית `naan-vrm-client/`:
+Create a `.env` file in `naan-vrm-client/`:
 
 ```env
 REACT_APP_API_URL=http://localhost:5000/api
 ```
 
-**חשוב**: עבור Production (Vercel), משתנה הסביבה `REACT_APP_API_URL` מוגדר ב-Vercel Dashboard ולא בקובץ `.env`.
+**Important**: For Production (Vercel), `REACT_APP_API_URL` is set in the Vercel Dashboard, not in `.env`.
 
-### הפעלת הקליינט
+### Start Client
 
 ```bash
 npm start
 ```
 
-האפליקציה תרוץ על: `http://localhost:3000`
+App will run on: `http://localhost:3000`
 
-## 🔗 חיבור לשרת (Backend)
+## Server Connection (Backend)
 
-הקליינט מתחבר לשרת דרך:
-- **Development**: `http://localhost:5000/api` (מוגדר ב-`.env`)
-- **Production**: כתובת השרת ב-Vercel Dashboard
+The client connects to the server via:
+- **Development**: `http://localhost:5000/api` (set in `.env`)
+- **Production**: Server URL in Vercel Dashboard
 
-הקובץ `src/api/axiosConfig.js` מגדיר את חיבור ה-axios ומטפל בהזרקת ה-token אוטומטית לכל בקשה.
+`src/api/axiosConfig.js` handles axios configuration and token injection.
 
-## ✅ בדיקת תקינות
+## Health Check
 
-לאחר הפעלת הקליינט:
-1. ודא שהשרת רץ על `http://localhost:5000`
-2. פתח את הדפדפן ב-`http://localhost:3000`
-3. נסה להתחבר עם:
+After starting the client:
+1. Ensure server is running on `http://localhost:5000`
+2. Open browser at `http://localhost:3000`
+3. Try to login with:
    - Email: `admin@naan.com`
    - Password: `111222333`
 
-## 📂 מבנה התיקייה
+## Directory Structure
 
 ```
 naan-vrm-client/
 ├── src/
 │   ├── api/
-│   │   └── axiosConfig.js      # תצורת axios וחיבור לשרת
-│   ├── components/             # קומפוננטות React
+│   │   └── axiosConfig.js      # Axios config
+│   ├── components/             # React Components
 │   ├── context/                # React Context (Auth)
-│   ├── pages/                  # דפי האפליקציה
-│   ├── App.js                  # קומפוננטה ראשית
-│   └── index.js                # נקודת כניסה
-├── public/                     # קבצים סטטיים
-├── package.json                # הגדרות הפרויקט
-└── .env                        # משתני סביבה (לא בקוד!)
+│   ├── pages/                  # Pages
+│   ├── App.js                  # Main App Component
+│   └── index.js                # Entry Point
+├── public/                     # Static files
+├── package.json                # Project settings
+└── .env                        # Environment variables
 ```
 
-## 🎨 טכנולוגיות
+## Technologies
 
-- **React 18.2.0** - ספריית UI
-- **React Router** - ניהול ניווט
-- **Material-UI (MUI)** - ספריית UI components
-- **Axios** - בקשות HTTP
-- **Chart.js** - גרפים וויזואליזציות
-- **Tailwind CSS** - עיצוב
+- **React 18.2.0** - UI Library
+- **React Router** - Navigation
+- **Material-UI (MUI)** - UI Components
+- **Axios** - HTTP Requests
+- **Chart.js** - Visualizations
+- **Tailwind CSS** - Styling
 
-## ⚠️ חשוב!
+## Important!
 
-- הקליינט **חייב** לרוץ מתוך תיקיית `naan-vrm-client/`
-- קובץ ה-`.env` חייב להיות בתיקיית `naan-vrm-client/`
-- אל תעלה את קובץ ה-`.env` ל-git!
-- ודא שהשרת רץ לפני הפעלת הקליינט
+- Client **MUST** run from `naan-vrm-client/`
+- `.env` file must be in `naan-vrm-client/`
+- Do not commit `.env` to git!
+- Ensure server is running before starting client
 
-## 📦 בנייה ל-Production
+## Production Build
 
 ```bash
 npm run build
 ```
 
-זה יוצר תיקיית `build/` עם הקבצים המוכנים לפריסה ב-Vercel.
+Creates a `build/` directory ready for deployment.
 
-## 🧪 הרצת בדיקות
+## Running Tests
 
 ```bash
 npm test
 ```
 
-## 📝 Available Scripts
+## Available Scripts
 
 ### `npm start`
 Runs the app in development mode at `http://localhost:3000`
@@ -108,4 +108,4 @@ Launches the test runner in interactive watch mode
 Builds the app for production to the `build` folder
 
 ### `npm run eject`
-**⚠️ One-way operation!** Ejects from Create React App (not recommended)
+**One-way operation!** Ejects from Create React App (not recommended)

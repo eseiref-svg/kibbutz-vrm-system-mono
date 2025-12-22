@@ -28,10 +28,10 @@ function NotificationsList() {
     try {
       await api.put(`/notifications/${notificationId}/read`);
       // Local update of the list
-      setNotifications(prev => 
-        prev.map(notif => 
-          notif.notification_id === notificationId 
-            ? { ...notif, is_read: true } 
+      setNotifications(prev =>
+        prev.map(notif =>
+          notif.notification_id === notificationId
+            ? { ...notif, is_read: true }
             : notif
         )
       );
@@ -55,7 +55,7 @@ function NotificationsList() {
     } else if (type === 'supplier_rejected') {
       return '❌';
     }
-    return '📢';
+    return null;
   };
 
   if (loading) {
@@ -97,11 +97,10 @@ function NotificationsList() {
           {notifications.map((notification) => (
             <div
               key={notification.notification_id}
-              className={`p-4 rounded-lg border-r-4 transition-colors ${
-                notification.is_read
+              className={`p-4 rounded-lg border-r-4 transition-colors ${notification.is_read
                   ? 'bg-gray-50 border-gray-300'
                   : 'bg-blue-50 border-blue-500'
-              }`}
+                }`}
             >
               <div className="flex items-start justify-between">
                 <div className="flex-1">
@@ -109,9 +108,8 @@ function NotificationsList() {
                     <span className="text-2xl">
                       {getNotificationIcon(notification.type)}
                     </span>
-                    <span className={`font-semibold ${
-                      notification.is_read ? 'text-gray-700' : 'text-blue-900'
-                    }`}>
+                    <span className={`font-semibold ${notification.is_read ? 'text-gray-700' : 'text-blue-900'
+                      }`}>
                       {notification.message}
                     </span>
                   </div>

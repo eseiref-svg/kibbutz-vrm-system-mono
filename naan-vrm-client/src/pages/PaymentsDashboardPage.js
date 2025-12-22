@@ -32,7 +32,7 @@ const PaymentsDashboardPage = () => {
         // Limit to current month
         currentMonth: true
       };
-      
+
       // Add filters
       if (filters.branchId && filters.branchId !== 'all') {
         params.branchId = filters.branchId;
@@ -136,7 +136,7 @@ const PaymentsDashboardPage = () => {
       </div>
 
       {/* Statistics cards */}
-      <PaymentStatsCards stats={stats} loading={loading && !stats} />
+      <PaymentStatsCards stats={stats} loading={loading && !stats} onRefresh={handleRefresh} />
 
       {/* Filters */}
       <PaymentFilters onFilterChange={handleFilterChange} />
@@ -148,19 +148,17 @@ const PaymentsDashboardPage = () => {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 px-6 py-4 text-sm font-medium transition-colors ${
-                activeTab === tab.id
-                  ? 'border-b-2 border-blue-500 text-blue-600'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-              }`}
+              className={`flex-1 px-6 py-4 text-sm font-medium transition-colors ${activeTab === tab.id
+                ? 'border-b-2 border-blue-500 text-blue-600'
+                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                }`}
             >
               {tab.label}
               {tab.count !== undefined && tab.count > 0 && (
-                <span className={`mr-2 px-2 py-1 text-xs rounded-full ${
-                  activeTab === tab.id
-                    ? 'bg-blue-100 text-blue-800'
-                    : 'bg-gray-100 text-gray-800'
-                }`}>
+                <span className={`mr-2 px-2 py-1 text-xs rounded-full ${activeTab === tab.id
+                  ? 'bg-blue-100 text-blue-800'
+                  : 'bg-gray-100 text-gray-800'
+                  }`}>
                   {tab.count}
                 </span>
               )}
@@ -171,9 +169,9 @@ const PaymentsDashboardPage = () => {
 
       {/* Payments table */}
       <div className="rounded-b-lg">
-        <PaymentsTable 
-          payments={payments} 
-          loading={loading} 
+        <PaymentsTable
+          payments={payments}
+          loading={loading}
           onRefresh={handleRefresh}
         />
       </div>

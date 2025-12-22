@@ -42,7 +42,7 @@ function ClientDetailsCard({ client, onBackToList, onRefresh }) {
 
   return (
     <div>
-      <button 
+      <button
         onClick={onBackToList}
         className="mb-4 text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-2"
       >
@@ -53,19 +53,19 @@ function ClientDetailsCard({ client, onBackToList, onRefresh }) {
         <div className="flex justify-between items-start mb-6">
           <div>
             <h2 className="text-2xl font-bold text-gray-800 mb-2">{client.name}</h2>
-            <p className="text-gray-600">מספר לקוח: {client.client_number || client.client_id}</p>
+            <p className="text-gray-600">מספר לקוח: {client.client_number || '-'}</p>
           </div>
           <div className="flex gap-3">
             {client.poc_phone && (
-              <button 
+              <button
                 onClick={handleCallClient}
                 className="bg-green-500 text-white hover:bg-green-600 font-bold py-2 px-4 rounded-lg"
               >
-                📞 התקשר
+                התקשר
               </button>
             )}
             {client.poc_email && (
-              <button 
+              <button
                 onClick={handleEmailClient}
                 className="bg-blue-500 text-white hover:bg-blue-600 font-bold py-2 px-4 rounded-lg"
               >
@@ -96,7 +96,7 @@ function ClientDetailsCard({ client, onBackToList, onRefresh }) {
         </div>
 
         <div className="pt-4 border-t">
-          <button 
+          <button
             onClick={() => setShowCreateSaleForm(!showCreateSaleForm)}
             className="bg-green-500 text-white hover:bg-green-600 font-bold py-2 px-6 rounded-lg"
           >
@@ -106,7 +106,7 @@ function ClientDetailsCard({ client, onBackToList, onRefresh }) {
       </div>
 
       {showCreateSaleForm && (
-        <CreateSaleForm 
+        <CreateSaleForm
           clientId={client.client_id}
           clientName={client.name}
           onSaleCreated={handleSaleCreated}
@@ -127,6 +127,7 @@ function ClientDetailsCard({ client, onBackToList, onRefresh }) {
 }
 
 export default ClientDetailsCard;
+
 
 
 
