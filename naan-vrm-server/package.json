@@ -19,6 +19,7 @@
     "dotenv": "^16.3.1",
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
+    "multer": "^2.0.2",
     "node-cron": "^4.2.1",
     "pg": "^8.16.3",
     "stylis": "^4.3.6",

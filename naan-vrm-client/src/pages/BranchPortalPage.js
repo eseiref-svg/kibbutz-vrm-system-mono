@@ -43,11 +43,13 @@ function BranchPortalPage() {
 
     const fetchBalance = api.get(`/branches/${branch.branch_id}/balance`);
     const fetchTransactions = api.get(`/branches/${branch.branch_id}/transactions`);
+    const fetchMySuppliers = api.get(`/branches/${branch.branch_id}/suppliers`);
 
-    Promise.all([fetchBalance, fetchTransactions])
-      .then(([balanceRes, transactionsRes]) => {
+    Promise.all([fetchBalance, fetchTransactions, fetchMySuppliers])
+      .then(([balanceRes, transactionsRes, suppliersRes]) => {
         setBalance(balanceRes.data);
         setTransactions(transactionsRes.data);
+        setFoundSuppliers(suppliersRes.data);
       })
       .catch(error => console.error("Error fetching branch data:", error))
       .finally(() => setLoading(false));
@@ -65,8 +67,13 @@ function BranchPortalPage() {
   };
 
   const clearSearch = () => {
-    setFoundSuppliers([]);
     setSearchQuery('');
+    // Reload my suppliers
+    if (branch) {
+      api.get(`/branches/${branch.branch_id}/suppliers`)
+        .then(res => setFoundSuppliers(res.data))
+        .catch(console.error);
+    }
   };
 
   const handleRequestSent = () => {
@@ -166,6 +173,7 @@ function BranchPortalPage() {
                     key={supplier.supplier_id}
                     supplier={supplier}
                     onClear={clearSearch}
+                    branchId={branch.branch_id}
                   />
                 ))}
               </div>

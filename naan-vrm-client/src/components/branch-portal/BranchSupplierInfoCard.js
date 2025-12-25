@@ -5,11 +5,13 @@ import Button from '../shared/Button';
 import Input from '../shared/Input';
 import RatingSummary from '../shared/RatingSummary';
 import ReviewList from '../shared/ReviewList';
+import CreatePaymentRequestForm from './CreatePaymentRequestForm';
 
-function BranchSupplierInfoCard({ supplier, onClear }) {
+function BranchSupplierInfoCard({ supplier, onClear, branchId }) {
   const [reviews, setReviews] = useState([]);
   const [loadingReviews, setLoadingReviews] = useState(false);
   const [showReviews, setShowReviews] = useState(false);
+  const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [newRating, setNewRating] = useState(0);
   const [newComment, setNewComment] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -69,31 +71,34 @@ function BranchSupplierInfoCard({ supplier, onClear }) {
       {/* Header */}
       <div className="flex justify-between items-center mb-6 border-b pb-4">
         <h3 className="text-xl font-bold text-gray-800">{supplier.name}</h3>
-        <Button size="sm" variant="outline" onClick={onClear}>נקה</Button>
+        <div className="flex gap-2">
+          <Button size="sm" variant="success" onClick={() => setShowPaymentForm(true)}>צור דרישת תשלום</Button>
+          <Button size="sm" variant="outline" onClick={onClear}>נקה</Button>
+        </div>
       </div>
 
       {/* Supplier Details */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
         <div>
-          <strong className="text-gray-700">שם:</strong> 
+          <strong className="text-gray-700">שם:</strong>
           <span className="mr-2">{supplier.name}</span>
         </div>
         <div>
-          <strong className="text-gray-700">ח.פ./ע.מ.:</strong> 
+          <strong className="text-gray-700">ח.פ./ע.מ.:</strong>
           <span className="mr-2">{supplier.supplier_id}</span>
         </div>
         <div>
-          <strong className="text-gray-700">איש קשר:</strong> 
+          <strong className="text-gray-700">איש קשר:</strong>
           <span className="mr-2">{supplier.poc_name}</span>
         </div>
         <div>
-          <strong className="text-gray-700">טלפון:</strong> 
+          <strong className="text-gray-700">טלפון:</strong>
           <a href={`tel:${supplier.poc_phone}`} className="text-blue-600 hover:underline mr-2">
             {supplier.poc_phone}
           </a>
         </div>
         <div className="sm:col-span-2">
-          <strong className="text-gray-700">אימייל:</strong> 
+          <strong className="text-gray-700">אימייל:</strong>
           <a href={`mailto:${supplier.poc_email}`} className="text-blue-600 hover:underline mr-2">
             {supplier.poc_email}
           </a>
@@ -103,13 +108,13 @@ function BranchSupplierInfoCard({ supplier, onClear }) {
       {/* Rating Section */}
       <div className="border-t pt-4">
         <h4 className="text-sm font-semibold text-gray-700 mb-2">דירוג</h4>
-        <RatingSummary 
-          average={parseFloat(supplier.average_rating)} 
-          totalReviews={supplier.total_reviews} 
+        <RatingSummary
+          average={parseFloat(supplier.average_rating)}
+          totalReviews={supplier.total_reviews}
         />
-        <Button 
-          size="sm" 
-          variant="outline" 
+        <Button
+          size="sm"
+          variant="outline"
           onClick={toggleReviews}
           className="mt-3"
         >
@@ -137,8 +142,8 @@ function BranchSupplierInfoCard({ supplier, onClear }) {
               onChange={(e) => setNewComment(e.target.value)}
               className="mb-4"
             />
-            <Button 
-              variant="primary" 
+            <Button
+              variant="primary"
               onClick={handleReviewSubmit}
               disabled={isSubmitting}
             >
@@ -156,6 +161,19 @@ function BranchSupplierInfoCard({ supplier, onClear }) {
             )}
           </div>
         </div>
+      )}
+
+      {/* Payment Request Modal */}
+      {showPaymentForm && (
+        <CreatePaymentRequestForm
+          open={showPaymentForm}
+          onClose={() => setShowPaymentForm(false)}
+          onSuccess={() => {
+            setShowPaymentForm(false);
+          }}
+          supplier={supplier}
+          branchId={branchId}
+        />
       )}
     </div>
   );

@@ -127,8 +127,12 @@ app.put('/api/dashboard/bank-balance', auth, async (req, res) => {
   }
 });
 
+
+
 // --- Public Routes ---
 // These routes do not require authentication
+
+
 app.post('/api/users/register', async (req, res) => {
   try {
     const { first_name, surname, email, phone_no, password, permissions_id } = req.body;
@@ -339,6 +343,38 @@ app.get('/api/branches/:id/transactions', async (req, res) => {
          ORDER BY t.due_date DESC LIMIT 5`,
       [id]
     );
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server Error');
+  }
+});
+
+// Get suppliers associated with a branch (via payment requests or requests)
+app.get('/api/branches/:id/suppliers', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Logic: Suppliers that have at least one payment request from this branch
+    // OR were requested by this branch (optional, but good for "My Suppliers")
+    // We distinct by supplier_id
+    const query = `
+      SELECT DISTINCT s.*, 
+             COALESCE(AVG(r.rate), 0) as average_rating,
+             COUNT(r.review_id) as total_reviews
+      FROM supplier s
+      LEFT JOIN review r ON s.supplier_id = r.supplier_id
+      WHERE s.status != 'deleted' 
+      AND (
+        s.supplier_id IN (SELECT supplier_id FROM payment_req WHERE branch_id = $1)
+        OR
+        s.supplier_id IN (SELECT requested_supplier_id FROM supplier_requests WHERE branch_id = $1 AND status = 'approved')
+      )
+      GROUP BY s.supplier_id
+      ORDER BY s.name
+    `;
+
+    const result = await db.query(query, [id]);
     res.json(result.rows);
   } catch (err) {
     console.error(err.message);
@@ -765,12 +801,44 @@ app.get('/api/suppliers/:id/reviews', async (req, res) => {
 app.post('/api/reviews', async (req, res) => {
   try {
     const { supplier_id, rate, comment } = req.body;
-    const user_id = req.user.id; // Get user ID from the authenticated token
+    const user_id = req.user.id;
 
     const newReview = await db.query(
-      'INSERT INTO "review" (supplier_id, user_id, rate, comment) VALUES ($1, $2, $3, $4) RETURNING *',
+      `INSERT INTO "review" (supplier_id, user_id, rate, comment) 
+       VALUES ($1, $2, $3, $4) 
+       RETURNING *`,
       [supplier_id, user_id, rate, comment]
     );
+
+    // Check overall supplier rating
+    const supplierStats = await db.query(`
+      SELECT AVG(rate) as average_rating, name 
+      FROM supplier s
+      JOIN review r ON s.supplier_id = r.supplier_id
+      WHERE s.supplier_id = $1
+      GROUP BY s.supplier_id, s.name
+    `, [supplier_id]);
+
+    if (supplierStats.rows.length > 0) {
+      const currentAvg = parseFloat(supplierStats.rows[0].average_rating);
+
+      // If rating is low (below 3), notify Treasurer/Admin
+      if (currentAvg < 3.0) {
+        const supplierName = supplierStats.rows[0].name;
+        // Find Treasurer (role 2 or 3) and Admins (role 1 or 5)
+        const adminsResult = await db.query('SELECT user_id FROM "user" WHERE permissions_id IN (1, 2, 3, 5)');
+
+        for (const admin of adminsResult.rows) {
+          await alertService.sendActionNotification(
+            admin.user_id,
+            'התראת איכות ספק',
+            `דירוג הספק "${supplierName}" ירד ל-${currentAvg.toFixed(1)}. נדרשת בחינה מחדש.`,
+            'low_rating_alert'
+          );
+        }
+      }
+    }
+
     res.status(201).json(newReview.rows[0]);
   } catch (err) {
     console.error(err.message);
@@ -1711,7 +1779,10 @@ app.post('/api/client-requests', auth, async (req, res) => {
       city,
       street_name,
       house_no,
-      zip_code
+      zip_code,
+      quote_value,
+      payment_terms,
+      quote_description
     } = req.body;
 
     const requested_by_user_id = req.user.id;
@@ -1726,17 +1797,21 @@ app.post('/api/client-requests', auth, async (req, res) => {
     }
     console.log('Validation passed - proceeding with insert');
 
-    // Insert client request - NO TRANSACTION FIELDS
+    // Insert client request - INCLUDING OPTIONAL QUOTE FIELDS
     const result = await db.query(`
       INSERT INTO client_request (
         branch_id, requested_by_user_id, client_name, 
-        poc_name, poc_phone, poc_email, city, street_name, house_no, zip_code, status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        poc_name, poc_phone, poc_email, city, street_name, house_no, zip_code, 
+        quote_value, payment_terms, quote_description,
+        status
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
       RETURNING *
     `, [
       branch_id, requested_by_user_id, client_name,
       poc_name, poc_phone, poc_email || null, city || null, street_name || null,
-      house_no || null, zip_code || null, 'pending'
+      house_no || null, zip_code || null,
+      quote_value || null, payment_terms || null, quote_description || null,
+      'pending'
     ]);
 
     // Create in-app notification for accounting (permissions_id: 1=admin, 2=treasurer)
@@ -1928,16 +2003,65 @@ app.put('/api/client-requests/:id/approve', auth, async (req, res) => {
     const newClient = clientResult.rows[0];
     console.log(`Created new client: client_id=${newClient.client_id}, client_number=${newClient.client_number}`);
 
-    // 3. Update request status and link to created client
+    // 2.5 Check for quote/payment request and auto-create sale if needed
+    let approvedSaleId = null;
+    if (request.quote_value && parseFloat(request.quote_value) > 0) {
+      try {
+        console.log(`Auto-creating sale for request ${id} (Amount: ${request.quote_value})`);
+
+        // Calculate Due Date
+        const terms = request.payment_terms || 'immediate';
+        const now = new Date();
+        let dueDate = new Date(now);
+
+        if (terms === 'plus_30') dueDate.setDate(now.getDate() + 30);
+        else if (terms === 'plus_60') dueDate.setDate(now.getDate() + 60);
+        else if (terms === 'plus_90') dueDate.setDate(now.getDate() + 90);
+
+        // Create Transaction (Status 'open' as it is approved)
+        const trxResult = await db.query(`
+          INSERT INTO transaction (value, due_date, status, description)
+          VALUES ($1, $2, 'open', $3)
+          RETURNING transaction_id
+        `, [
+          request.quote_value,
+          dueDate,
+          request.quote_description || `תשלום עבור: ${finalClientName}`
+        ]);
+        const transactionId = trxResult.rows[0].transaction_id;
+
+        // Create Sale
+        const saleResult = await db.query(`
+          INSERT INTO sale (client_id, branch_id, transaction_id, payment_terms, invoice_number)
+          VALUES ($1, $2, $3, $4, $5)
+          RETURNING sale_id
+        `, [
+          newClient.client_id,
+          request.branch_id,
+          transactionId,
+          terms,
+          `REQ-${request.request_id}` // Temporary invoice number reference
+        ]);
+        approvedSaleId = saleResult.rows[0].sale_id;
+        console.log(`Created Sale ID: ${approvedSaleId}`);
+      } catch (saleErr) {
+        console.error('Error auto-creating sale:', saleErr);
+        // Continue - don't fail the whole request approval just because sale creation failed (though it's bad)
+      }
+    }
+
+    // 3. Update request status and link to created client/sale
     await db.query(`
       UPDATE client_request
       SET status = 'approved', 
           reviewed_by_user_id = $1, 
           review_notes = $2, 
           reviewed_at = NOW(),
-          client_id = $3
-      WHERE request_id = $4
-    `, [reviewed_by_user_id, review_notes || null, newClient.client_id, id]);
+          client_id = $3,
+          approved_client_id = $3,
+          approved_sale_id = $4
+      WHERE request_id = $5
+    `, [reviewed_by_user_id, review_notes || null, newClient.client_id, approvedSaleId, id]);
 
     // 4. Notify the branch manager
     await db.query(`
@@ -2477,6 +2601,218 @@ app.put('/api/sales/:id/approve', auth, async (req, res) => {
   } catch (err) {
     console.error('Error approving sale:', err.message);
     res.status(500).json({ message: 'שגיאה באישור דרישת התשלום' });
+  }
+});
+
+// ============================================
+// NEW: Payment Request (Supplier) Flow
+// ============================================
+
+// Get ALL pending transactions (Sales + Payment Requests) for Treasurer
+app.get('/api/transactions/pending-approval', auth, async (req, res) => {
+  try {
+    const result = await db.query(`
+      SELECT 
+        s.sale_id as id,
+        s.client_id as entity_id,
+        s.branch_id,
+        s.transaction_id,
+        t.value, 
+        t.due_date as transaction_date, 
+        t.description,
+        c.name as entity_name,
+        c.client_number as entity_identifier,
+        null as invoice_reference, -- Sales don't have invoice num yet (added on approval)
+        b.name as branch_name,
+        'sale' as type
+      FROM sale s
+      JOIN transaction t ON s.transaction_id = t.transaction_id
+      LEFT JOIN client c ON s.client_id = c.client_id
+      LEFT JOIN branch b ON s.branch_id = b.branch_id
+      WHERE t.status = 'pending_approval'
+
+      UNION ALL
+
+      SELECT 
+        pr.payment_req_id as id,
+        pr.supplier_id as entity_id,
+        pr.branch_id,
+        pr.transaction_id,
+        ABS(t.value) as value, -- Show positive value for display (it is stored negative)
+        t.due_date as transaction_date,
+        t.description,
+        s.name as entity_name,
+        s.supplier_id::text as entity_identifier, -- Supplier ID is often HP/BN
+        t.description as invoice_reference, -- Assuming description holds invoice info
+        b.name as branch_name,
+        'payment' as type
+      FROM payment_req pr
+      JOIN transaction t ON pr.transaction_id = t.transaction_id
+      LEFT JOIN supplier s ON pr.supplier_id = s.supplier_id
+      LEFT JOIN branch b ON pr.branch_id = b.branch_id
+      WHERE t.status = 'pending_approval'
+      
+      ORDER BY transaction_date DESC
+    `);
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching pending transactions:', err.message);
+    res.status(500).json({ message: 'שגיאה בטעינת בקשות ממתינות' });
+  }
+});
+
+// Create new payment request (Branch Manager for Supplier)
+app.post('/api/payment-requests', auth, async (req, res) => {
+  try {
+    const { supplier_id, branch_id, amount, due_date, description, invoice_number } = req.body;
+
+    if (!supplier_id || !branch_id || !amount) {
+      return res.status(400).json({ message: 'שדות חובה: ספק, ענף, סכום' });
+    }
+
+    // Ensure amount is positive from UI, convert to negative for DB (Expense)
+    const dbValue = -Math.abs(parseFloat(amount));
+
+    // Description should include invoice number if provided
+    let finalDescription = description || '';
+    if (invoice_number) {
+      finalDescription = `חשבונית: ${invoice_number} - ${finalDescription}`;
+    }
+
+    await db.query('BEGIN');
+
+    try {
+      // Create transaction
+      // Note: due_date is "requested payment date"
+      const transactionResult = await db.query(
+        `INSERT INTO transaction (value, due_date, status, description) 
+         VALUES ($1, $2, 'pending_approval', $3) RETURNING transaction_id`,
+        [dbValue, due_date || null, finalDescription]
+      );
+      const transactionId = transactionResult.rows[0].transaction_id;
+
+      // Create payment_req
+      // Check if supplier exists
+      const supplierExists = await db.query('SELECT 1 FROM supplier WHERE supplier_id = $1', [supplier_id]);
+      if (supplierExists.rows.length === 0) {
+        throw new Error(`Supplier ${supplier_id} not found`);
+      }
+
+      const payReqResult = await db.query(
+        `INSERT INTO payment_req (transaction_id, supplier_id, branch_id) 
+         VALUES ($1, $2, $3) RETURNING *`,
+        [transactionId, supplier_id, branch_id]
+      );
+
+      await db.query('COMMIT');
+
+      // Notify Treasurer
+      await db.query(`
+        INSERT INTO notifications (user_id, message, type, created_at)
+        SELECT user_id, $1, 'info', NOW()
+        FROM "user"
+        WHERE permissions_id IN (1, 2)
+      `, [`דרישת תשלום חדשה מספק ממתינה לאישור - סכום: ₪${Math.abs(dbValue)}`]);
+
+      res.status(201).json({
+        ...payReqResult.rows[0],
+        transaction_id: transactionId
+      });
+    } catch (error) {
+      await db.query('ROLLBACK');
+      throw error;
+    }
+  } catch (err) {
+    console.error('Error creating payment request:', err.message);
+    res.status(500).send('Server Error: ' + err.message);
+  }
+});
+
+// Approve payment request (Treasurer)
+app.put('/api/payment-requests/:id/approve', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Get request details
+    const reqResult = await db.query('SELECT * FROM payment_req WHERE payment_req_id = $1', [id]);
+    if (reqResult.rows.length === 0) return res.status(404).json({ message: 'Payment request not found' });
+    const payReq = reqResult.rows[0];
+
+    await db.query('BEGIN');
+    try {
+      // Update transaction status to open (approved)
+      await db.query(
+        `UPDATE transaction SET status = 'open' WHERE transaction_id = $1`,
+        [payReq.transaction_id]
+      );
+
+      await db.query('COMMIT');
+
+      // Notify Branch Manager
+      // (Finding manager logic same as sale ...)
+      const branchQuery = await db.query('SELECT manager_id FROM branch WHERE branch_id = $1', [payReq.branch_id]);
+      if (branchQuery.rows.length > 0 && branchQuery.rows[0].manager_id) {
+        await db.query(`
+          INSERT INTO notifications (user_id, message, type, created_at)
+          VALUES ($1, $2, 'success', NOW())
+        `, [
+          branchQuery.rows[0].manager_id,
+          'דרישת תשלום מספק אושרה על ידי הנהלת חשבונות'
+        ]);
+      }
+
+      res.json({ message: 'דרישת התשלום אושרה בהצלחה' });
+    } catch (error) {
+      await db.query('ROLLBACK');
+      throw error;
+    }
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server Error');
+  }
+});
+
+// Reject payment request
+app.put('/api/payment-requests/:id/reject', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { rejection_reason } = req.body;
+
+    if (!rejection_reason) return res.status(400).json({ message: 'נדרשת סיבת דחייה' });
+
+    const reqResult = await db.query('SELECT * FROM payment_req WHERE payment_req_id = $1', [id]);
+    if (reqResult.rows.length === 0) return res.status(404).json({ message: 'Payment request not found' });
+    const payReq = reqResult.rows[0];
+
+    await db.query('BEGIN');
+    try {
+      await db.query(
+        `UPDATE transaction SET status = 'rejected', description = COALESCE(description, '') || E'\n\nסיבת דחייה: ' || $1 WHERE transaction_id = $2`,
+        [rejection_reason, payReq.transaction_id]
+      );
+      await db.query('COMMIT');
+
+      // Notify Branch Manager
+      const branchQuery = await db.query('SELECT manager_id FROM branch WHERE branch_id = $1', [payReq.branch_id]);
+      if (branchQuery.rows.length > 0 && branchQuery.rows[0].manager_id) {
+        await db.query(`
+          INSERT INTO notifications (user_id, message, type, created_at)
+          VALUES ($1, $2, 'error', NOW())
+        `, [
+          branchQuery.rows[0].manager_id,
+          `דרישת תשלום מספק נדחתה. סיבה: ${rejection_reason}`
+        ]);
+      }
+
+      res.json({ message: 'דרישת התשלום נדחתה' });
+    } catch (error) {
+      await db.query('ROLLBACK');
+      throw error;
+    }
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server Error');
   }
 });
 

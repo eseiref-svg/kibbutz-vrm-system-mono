@@ -4,7 +4,7 @@ import Button from '../shared/Button';
 import { calculateDueDate, formatPaymentTerms } from '../../utils/paymentTerms';
 
 function SalesApprovalWidget() {
-  const [pendingSales, setPendingSales] = useState([]);
+  const [pendingTransactions, setPendingTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [approvingId, setApprovingId] = useState(null);
@@ -16,24 +16,25 @@ function SalesApprovalWidget() {
   });
 
   useEffect(() => {
-    fetchPendingSales();
+    fetchPendingTransactions();
   }, []);
 
-  const fetchPendingSales = async () => {
+  const fetchPendingTransactions = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/sales/pending-approval');
-      setPendingSales(response.data || []);
+      const response = await api.get('/transactions/pending-approval');
+      setPendingTransactions(response.data || []);
     } catch (error) {
-      console.error('Error fetching pending sales:', error);
-      setError('שגיאה בטעינת דרישות תשלום ממתינות');
+      console.error('Error fetching pending transactions:', error);
+      setError('שגיאה בטעינת בקשות ממתינות');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleApproveClick = (sale) => {
-    setApprovingId(sale.sale_id);
+  const handleApproveClick = (transaction) => {
+    setApprovingId(transaction.id);
+    // For sales, reset form. For payments, nothing specialized needed yet.
     setApprovalData({
       payment_terms: 'current_50',
       invoice_number: ''
@@ -47,11 +48,13 @@ function SalesApprovalWidget() {
     });
   };
 
-  const handleConfirmApprove = async (saleId) => {
-    // Validate invoice_number
-    if (!approvalData.invoice_number || approvalData.invoice_number.trim() === '') {
-      alert('❌ מספר חשבונית הוא שדה חובה');
-      return;
+  const handleConfirmApprove = async (transaction) => {
+    // If it's a Sale, validate fields
+    if (transaction.type === 'sale') {
+      if (!approvalData.invoice_number || approvalData.invoice_number.trim() === '') {
+        alert('❌ מספר חשבונית הוא שדה חובה');
+        return;
+      }
     }
 
     // Confirmation dialog
@@ -60,17 +63,19 @@ function SalesApprovalWidget() {
     }
 
     try {
-      await api.put(`/sales/${saleId}/approve`, approvalData);
-      alert('✅ דרישת התשלום אושרה בהצלחה!');
+      if (transaction.type === 'sale') {
+        await api.put(`/sales/${transaction.id}/approve`, approvalData);
+      } else {
+        // Payment Request (Supplier)
+        await api.put(`/payment-requests/${transaction.id}/approve`, {});
+      }
+
+      alert('✅ הבקשה אושרה בהצלחה!');
       setApprovingId(null);
-      setApprovalData({
-        payment_terms: 'current_50',
-        invoice_number: ''
-      });
-      fetchPendingSales(); // Refresh list
+      fetchPendingTransactions(); // Refresh list
     } catch (error) {
-      console.error('Error approving sale:', error);
-      alert(error.response?.data?.message || 'שגיאה באישור דרישת התשלום');
+      console.error('Error approving transaction:', error);
+      alert(error.response?.data?.message || 'שגיאה באישור הבקשה');
     }
   };
 
@@ -82,12 +87,12 @@ function SalesApprovalWidget() {
     });
   };
 
-  const handleRejectClick = (sale) => {
-    setRejectingId(sale.sale_id);
+  const handleRejectClick = (transaction) => {
+    setRejectingId(transaction.id);
     setRejectionReason('');
   };
 
-  const handleConfirmReject = async (saleId) => {
+  const handleConfirmReject = async (transaction) => {
     // Validate rejection reason
     if (!rejectionReason || rejectionReason.trim() === '') {
       alert('❌ יש לציין סיבת דחייה');
@@ -95,19 +100,24 @@ function SalesApprovalWidget() {
     }
 
     // Confirmation dialog
-    if (!window.confirm('האם אתה בטוח שברצונך לדחות את דרישת התשלום? פעולה זו תודיע למנהל הענף.')) {
+    if (!window.confirm('האם אתה בטוח שברצונך לדחות את הבקשה? פעולה זו תודיע למנהל הענף.')) {
       return;
     }
 
     try {
-      await api.put(`/sales/${saleId}/reject`, { rejection_reason: rejectionReason });
-      alert('✅ דרישת התשלום נדחתה');
+      if (transaction.type === 'sale') {
+        await api.put(`/sales/${transaction.id}/reject`, { rejection_reason: rejectionReason });
+      } else {
+        await api.put(`/payment-requests/${transaction.id}/reject`, { rejection_reason: rejectionReason });
+      }
+
+      alert('✅ הבקשה נדחתה');
       setRejectingId(null);
       setRejectionReason('');
-      fetchPendingSales(); // Refresh list
+      fetchPendingTransactions(); // Refresh list
     } catch (error) {
-      console.error('Error rejecting sale:', error);
-      alert(error.response?.data?.message || 'שגיאה בדחיית דרישת התשלום');
+      console.error('Error rejecting transaction:', error);
+      alert(error.response?.data?.message || 'שגיאה בדחיית הבקשה');
     }
   };
 
@@ -119,7 +129,7 @@ function SalesApprovalWidget() {
   if (loading) {
     return (
       <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
-        <h3 className="text-xl font-bold text-gray-800 mb-4">דרישות תשלום ממתינות לאישור</h3>
+        <h3 className="text-xl font-bold text-gray-800 mb-4">בקשות ממתינות לאישור</h3>
         <p className="text-gray-600">טוען...</p>
       </div>
     );
@@ -128,7 +138,7 @@ function SalesApprovalWidget() {
   if (error) {
     return (
       <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
-        <h3 className="text-xl font-bold text-gray-800 mb-4">דרישות תשלום ממתינות לאישור</h3>
+        <h3 className="text-xl font-bold text-gray-800 mb-4">בקשות ממתינות לאישור</h3>
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
           {error}
         </div>
@@ -136,11 +146,11 @@ function SalesApprovalWidget() {
     );
   }
 
-  if (pendingSales.length === 0) {
+  if (pendingTransactions.length === 0) {
     return (
       <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
-        <h3 className="text-xl font-bold text-gray-800 mb-4">דרישות תשלום ממתינות לאישור</h3>
-        <p className="text-gray-600">אין דרישות תשלום ממתינות לאישור.</p>
+        <h3 className="text-xl font-bold text-gray-800 mb-4">בקשות ממתינות לאישור</h3>
+        <p className="text-gray-600">אין בקשות ממתינות לאישור.</p>
       </div>
     );
   }
@@ -148,15 +158,16 @@ function SalesApprovalWidget() {
   return (
     <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
       <h3 className="text-xl font-bold text-gray-800 mb-4">
-        דרישות תשלום ממתינות לאישור ({pendingSales.length})
+        בקשות ממתינות לאישור ({pendingTransactions.length})
       </h3>
 
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">לקוח</th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">מספר לקוח</th>
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">יישות (לקוח/ספק)</th>
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">מזהה</th>
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">סוג</th>
               <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">ענף</th>
               <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">סכום</th>
               <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">תאריך עסקה</th>
@@ -165,37 +176,40 @@ function SalesApprovalWidget() {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {pendingSales.map((sale) => (
-              <React.Fragment key={sale.sale_id}>
+            {pendingTransactions.map((trx) => (
+              <React.Fragment key={`${trx.type}-${trx.id}`}>
                 <tr className="hover:bg-gray-50">
                   <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    <div>{sale.client_name}</div>
-                    {sale.poc_name && (
-                      <div className="text-xs text-gray-500 mt-1">איש קשר: {sale.poc_name}</div>
-                    )}
+                    <div>{trx.entity_name}</div>
+                    {/* Assuming poc_name might not be returned in union query or needs handling, currently focusing on main fields */}
                   </td>
                   <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600">
-                    {sale.client_number || `#${sale.client_id}`}
+                    {trx.entity_identifier || `#${trx.entity_id}`}
                   </td>
                   <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600">
-                    {sale.branch_name}
+                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${trx.type === 'sale' ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'}`}>
+                      {trx.type === 'sale' ? 'מכירה ללקוח' : 'תשלום לספק'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600">
+                    {trx.branch_name}
                   </td>
                   <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 font-semibold">
-                    ₪{parseFloat(sale.value).toLocaleString('he-IL', { minimumFractionDigits: 2 })}
+                    ₪{parseFloat(trx.value).toLocaleString('he-IL', { minimumFractionDigits: 2 })}
                   </td>
                   <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600">
-                    {new Date(sale.transaction_date).toLocaleDateString('he-IL')}
+                    {new Date(trx.transaction_date).toLocaleDateString('he-IL')}
                   </td>
                   <td className="px-4 py-4 text-sm text-gray-600">
-                    {sale.description || '-'}
+                    {trx.description || '-'}
                   </td>
                   <td className="px-4 py-4 whitespace-nowrap text-sm">
-                    {approvingId === sale.sale_id || rejectingId === sale.sale_id ? (
+                    {approvingId === trx.id || rejectingId === trx.id ? (
                       <div className="flex gap-2">
                         <Button
                           variant="secondary"
                           size="sm"
-                          onClick={approvingId === sale.sale_id ? handleCancelApprove : handleCancelReject}
+                          onClick={approvingId === trx.id ? handleCancelApprove : handleCancelReject}
                         >
                           ביטול
                         </Button>
@@ -205,14 +219,14 @@ function SalesApprovalWidget() {
                         <Button
                           variant="success"
                           size="sm"
-                          onClick={() => handleApproveClick(sale)}
+                          onClick={() => handleApproveClick(trx)}
                         >
                           אשר
                         </Button>
                         <Button
                           variant="danger"
                           size="sm"
-                          onClick={() => handleRejectClick(sale)}
+                          onClick={() => handleRejectClick(trx)}
                         >
                           דחה
                         </Button>
@@ -222,85 +236,80 @@ function SalesApprovalWidget() {
                 </tr>
 
                 {/* Approval Form Row */}
-                {approvingId === sale.sale_id && (
+                {approvingId === trx.id && (
                   <tr className="bg-blue-50">
-                    <td colSpan="7" className="px-4 py-4">
+                    <td colSpan="8" className="px-4 py-4">
                       <div className="space-y-4">
-                        <h4 className="font-semibold text-gray-800 mb-2">פרטי אישור</h4>
+                        <h4 className="font-semibold text-gray-800 mb-2">פרטי אישור - {trx.type === 'sale' ? 'מכירה' : 'תשלום לספק'}</h4>
 
-                        {/* Client Details */}
-                        <div className="bg-white p-3 rounded border border-gray-200 mb-4">
-                          <h5 className="font-semibold text-gray-700 mb-2">פרטי הלקוח והעסקה:</h5>
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm mb-2">
-                            <div>
-                              <span className="text-gray-600">שם:</span> <span className="font-medium">{sale.client_name}</span>
-                            </div>
-                            <div>
-                              <span className="text-gray-600">מספר לקוח:</span> <span className="font-medium">{sale.client_number || `#${sale.client_id}`}</span>
-                            </div>
-                            {sale.poc_name && (
-                              <div>
-                                <span className="text-gray-600">איש קשר:</span> <span className="font-medium">{sale.poc_name}</span>
+                        {trx.type === 'sale' ? (
+                          <>
+                            {/* Sale Approval Form - Same as before */}
+                            <div className="bg-white p-3 rounded border border-gray-200 mb-4">
+                              <h5 className="font-semibold text-gray-700 mb-2">פרטי הלקוח והעסקה:</h5>
+                              <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm pt-2 border-t border-gray-200">
+                                <div>
+                                  <span className="text-gray-600">סכום ללא מע"מ:</span> <span className="font-medium">₪{parseFloat(trx.value).toLocaleString('he-IL', { minimumFractionDigits: 2 })}</span>
+                                </div>
+                                <div>
+                                  <span className="text-gray-600">מע"מ (18%):</span> <span className="font-medium">₪{(parseFloat(trx.value) * 0.18).toLocaleString('he-IL', { minimumFractionDigits: 2 })}</span>
+                                </div>
+                                <div>
+                                  <span className="text-gray-600">סכום כולל מע"מ:</span> <span className="font-bold text-blue-700">₪{(parseFloat(trx.value) * 1.18).toLocaleString('he-IL', { minimumFractionDigits: 2 })}</span>
+                                </div>
                               </div>
-                            )}
-                            {sale.poc_phone && (
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               <div>
-                                <span className="text-gray-600">טלפון:</span> <span className="font-medium">{sale.poc_phone}</span>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                  תנאי תשלום *
+                                </label>
+                                <select
+                                  name="payment_terms"
+                                  value={approvalData.payment_terms}
+                                  onChange={handleApprovalChange}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  required
+                                >
+                                  <option value="immediate">מיידי (0 ימים)</option>
+                                  <option value="current_15">שוטף 15+ (15 ימים)</option>
+                                  <option value="current_35">שוטף 35+ (35 ימים)</option>
+                                  <option value="current_50">שוטף 50+ (50 ימים) - ברירת מחדל</option>
+                                </select>
+                                <div className="mt-2 text-sm text-blue-700 bg-blue-50 p-2 rounded border border-blue-100">
+                                  <span className="font-semibold">תאריך תשלום מחושב: </span>
+                                  {calculateDueDate(trx.transaction_date, approvalData.payment_terms)?.toLocaleDateString('he-IL')}
+                                </div>
                               </div>
-                            )}
-                          </div>
-                          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm pt-2 border-t border-gray-200">
-                            <div>
-                              <span className="text-gray-600">סכום ללא מע"מ:</span> <span className="font-medium">₪{parseFloat(sale.value).toLocaleString('he-IL', { minimumFractionDigits: 2 })}</span>
-                            </div>
-                            <div>
-                              <span className="text-gray-600">מע"מ (18%):</span> <span className="font-medium">₪{(parseFloat(sale.value) * 0.18).toLocaleString('he-IL', { minimumFractionDigits: 2 })}</span>
-                            </div>
-                            <div>
-                              <span className="text-gray-600">סכום כולל מע"מ:</span> <span className="font-bold text-blue-700">₪{(parseFloat(sale.value) * 1.18).toLocaleString('he-IL', { minimumFractionDigits: 2 })}</span>
-                            </div>
-                          </div>
-                        </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                              תנאי תשלום *
-                            </label>
-                            <select
-                              name="payment_terms"
-                              value={approvalData.payment_terms}
-                              onChange={handleApprovalChange}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              required
-                            >
-                              <option value="immediate">מיידי (0 ימים)</option>
-                              <option value="current_15">שוטף 15+ (15 ימים)</option>
-                              <option value="current_35">שוטף 35+ (35 ימים)</option>
-                              <option value="current_50">שוטף 50+ (50 ימים) - ברירת מחדל</option>
-                            </select>
-                            {/* Display calculated date */}
-                            <div className="mt-2 text-sm text-blue-700 bg-blue-50 p-2 rounded border border-blue-100">
-                              <span className="font-semibold">תאריך תשלום מחושב: </span>
-                              {calculateDueDate(sale.transaction_date, approvalData.payment_terms)?.toLocaleDateString('he-IL')}
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                  מספר חשבונית *
+                                </label>
+                                <input
+                                  type="text"
+                                  name="invoice_number"
+                                  value={approvalData.invoice_number}
+                                  onChange={handleApprovalChange}
+                                  placeholder="הזן מספר חשבונית (חובה)"
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  required
+                                />
+                              </div>
                             </div>
+                          </>
+                        ) : (
+                          // Payment Request Approval (Simple Confirmation)
+                          <div className="bg-white p-4 rounded border border-gray-200">
+                            <p className="text-gray-700 mb-2">
+                              האם ברצונך לאשר את דרישת התשלום לספק <strong>{trx.entity_name}</strong> בסך <strong>₪{parseFloat(trx.value).toLocaleString()}</strong>?
+                            </p>
+                            <p className="text-gray-600 text-sm">
+                              אישור הבקשה יהפוך אותה לסטטוס "פתוח" ויכניס אותה למעקב התשלומים.
+                            </p>
                           </div>
-
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                              מספר חשבונית *
-                            </label>
-                            <input
-                              type="text"
-                              name="invoice_number"
-                              value={approvalData.invoice_number}
-                              onChange={handleApprovalChange}
-                              placeholder="הזן מספר חשבונית (חובה)"
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              required
-                            />
-                          </div>
-                        </div>
+                        )}
 
                         <div className="flex justify-end gap-3 pt-2">
                           <Button
@@ -311,9 +320,9 @@ function SalesApprovalWidget() {
                           </Button>
                           <Button
                             variant="primary"
-                            onClick={() => handleConfirmApprove(sale.sale_id)}
+                            onClick={() => handleConfirmApprove(trx)}
                           >
-                            אשר דרישת תשלום
+                            אשר בקשה
                           </Button>
                         </div>
                       </div>
@@ -322,11 +331,11 @@ function SalesApprovalWidget() {
                 )}
 
                 {/* Rejection Form Row */}
-                {rejectingId === sale.sale_id && (
+                {rejectingId === trx.id && (
                   <tr className="bg-red-50">
-                    <td colSpan="7" className="px-4 py-4">
+                    <td colSpan="8" className="px-4 py-4">
                       <div className="space-y-4">
-                        <h4 className="font-semibold text-red-800 mb-2">דחיית דרישת תשלום</h4>
+                        <h4 className="font-semibold text-red-800 mb-2">דחיית בקשה</h4>
 
                         <div className="bg-white p-3 rounded border border-red-200">
                           <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -335,7 +344,7 @@ function SalesApprovalWidget() {
                           <textarea
                             value={rejectionReason}
                             onChange={(e) => setRejectionReason(e.target.value)}
-                            placeholder="נא לפרט את הסיבה לדחיית דרישת התשלום..."
+                            placeholder="נא לפרט את הסיבה לדחיית הבקשה..."
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 min-h-[100px]"
                             required
                           />
@@ -350,9 +359,9 @@ function SalesApprovalWidget() {
                           </Button>
                           <Button
                             variant="danger"
-                            onClick={() => handleConfirmReject(sale.sale_id)}
+                            onClick={() => handleConfirmReject(trx)}
                           >
-                            דחה דרישת תשלום
+                            דחה בקשה
                           </Button>
                         </div>
                       </div>

@@ -10,8 +10,9 @@ function SupplierDetailsCard({ supplier, onBackToList, onEdit }) {
   const [reviews, setReviews] = useState([]);
   const [loadingReviews, setLoadingReviews] = useState(false);
   const [newRating, setNewRating] = useState(0);
+  // const [ratings, setRatings] = useState({ quality: 0, time: 0, price: 0, service: 0 });
   const [newComment, setNewComment] = useState('');
-  
+
   const fetchReviews = useCallback(() => {
     if (!supplier) return;
     setLoadingReviews(true);
@@ -67,15 +68,15 @@ function SupplierDetailsCard({ supplier, onBackToList, onEdit }) {
       {/* Basic Info */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         <div>
-          <strong className="text-gray-700">איש קשר:</strong> 
+          <strong className="text-gray-700">איש קשר:</strong>
           <span className="mr-2">{supplier.poc_name || 'לא הוזן'}</span>
         </div>
         <div>
-          <strong className="text-gray-700">טלפון:</strong> 
+          <strong className="text-gray-700">טלפון:</strong>
           <span className="mr-2">{supplier.poc_phone || 'לא הוזן'}</span>
         </div>
         <div className="md:col-span-2">
-          <strong className="text-gray-700">אימייל:</strong> 
+          <strong className="text-gray-700">אימייל:</strong>
           <span className="mr-2">{supplier.poc_email || 'לא הוזן'}</span>
         </div>
       </div>
@@ -84,31 +85,28 @@ function SupplierDetailsCard({ supplier, onBackToList, onEdit }) {
       <div className="border-b border-gray-200 mb-6">
         <div className="flex gap-2">
           <button
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === 'details' 
-                ? 'border-blue-600 text-blue-600' 
-                : 'border-transparent text-gray-600 hover:text-gray-800'
-            }`}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'details'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-gray-600 hover:text-gray-800'
+              }`}
             onClick={() => setActiveTab('details')}
           >
             פרטים
           </button>
           <button
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === 'payment_history' 
-                ? 'border-blue-600 text-blue-600' 
-                : 'border-transparent text-gray-600 hover:text-gray-800'
-            }`}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'payment_history'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-gray-600 hover:text-gray-800'
+              }`}
             onClick={() => setActiveTab('payment_history')}
           >
             היסטוריית תשלומים
           </button>
           <button
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === 'performance' 
-                ? 'border-blue-600 text-blue-600' 
-                : 'border-transparent text-gray-600 hover:text-gray-800'
-            }`}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'performance'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-gray-600 hover:text-gray-800'
+              }`}
             onClick={() => setActiveTab('performance')}
           >
             ביצועים ודירוג
@@ -128,19 +126,20 @@ function SupplierDetailsCard({ supplier, onBackToList, onEdit }) {
             </div>
           </div>
         )}
-        
+
         {activeTab === 'payment_history' && (
           <div className="p-4 border border-gray-200 rounded-lg bg-gray-50">
             <h3 className="text-lg font-semibold mb-3">היסטוריית תשלומים</h3>
             <p>יוצג בקרוב...</p>
           </div>
         )}
-        
+
         {activeTab === 'performance' && (
           <div className="space-y-6">
             {/* Add Review Form */}
             <div className="p-4 border border-gray-200 rounded-lg bg-gray-50">
               <h3 className="text-lg font-semibold mb-4">הוסף דירוג חדש</h3>
+
               <div className="flex items-center gap-3 mb-4">
                 <span className="text-sm font-medium">דירוג (כוכבים):</span>
                 <Rating
@@ -149,6 +148,7 @@ function SupplierDetailsCard({ supplier, onBackToList, onEdit }) {
                   onChange={(event, newValue) => setNewRating(newValue)}
                 />
               </div>
+
               <Input
                 label="הערות נוספות (אופציונלי)"
                 value={newComment}

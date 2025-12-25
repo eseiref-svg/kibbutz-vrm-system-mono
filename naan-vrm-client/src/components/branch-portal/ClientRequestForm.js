@@ -3,6 +3,7 @@ import api from '../../api/axiosConfig';
 import Button from '../shared/Button';
 import Modal from '../shared/Modal';
 import Input from '../shared/Input';
+import TransactionInputSection from '../shared/TransactionInputSection';
 import { validatePhoneNumber, validateEmail, validateRequired } from '../../utils/validation';
 
 function ClientRequestForm({ open, onClose, onSuccess, branchId }) {
@@ -36,7 +37,10 @@ function ClientRequestForm({ open, onClose, onSuccess, branchId }) {
       city: '',
       street_name: '',
       house_no: '',
-      zip_code: ''
+      zip_code: '',
+      quote_value: '',
+      payment_terms: 'immediate',
+      quote_description: ''
     });
     setError('');
     setValidationErrors({});
@@ -197,6 +201,42 @@ function ClientRequestForm({ open, onClose, onSuccess, branchId }) {
             value={formData.zip_code}
             onChange={handleChange}
           />
+        </div>
+
+        {/* Quote / Payment Request Details */}
+        <div className="space-y-4 pt-4 border-t">
+          <h4 className="font-semibold text-gray-800 border-b pb-2">פרטי הצעת מחיר / דרישת תשלום (אופציונלי)</h4>
+          <p className="text-sm text-gray-500">מלא פרטים אלו כדי ליצור דרישת תשלום אוטומטית עם אישור הלקוח.</p>
+
+          <TransactionInputSection
+            amount={formData.quote_value || ''}
+            description={formData.quote_description || ''}
+            showDate={false}
+            onChange={(name, value) => {
+              const map = { amount: 'quote_value', description: 'quote_description' };
+              handleChange({ target: { name: map[name] || name, value } });
+            }}
+            amountLabel="סכום לתשלום (₪)"
+            descriptionLabel="תיאור העסקה / פרטי ההצעה"
+            className="bg-white border-0 shadow-none p-0"
+            paymentTerms={formData.payment_terms}
+          >
+            {/* Payment Terms - Injected into the "slot" */}
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-bold text-gray-700 mb-2">תנאי תשלום</label>
+              <select
+                name="payment_terms"
+                value={formData.payment_terms || 'immediate'}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-blue-200 rounded-lg bg-white/50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+              >
+                <option value="immediate">מיידי (שוטף)</option>
+                <option value="plus_30">שוטף + 30</option>
+                <option value="plus_60">שוטף + 60</option>
+                <option value="plus_90">שוטף + 90</option>
+              </select>
+            </div>
+          </TransactionInputSection>
         </div>
 
         <div className="flex justify-end gap-3 pt-4 border-t">

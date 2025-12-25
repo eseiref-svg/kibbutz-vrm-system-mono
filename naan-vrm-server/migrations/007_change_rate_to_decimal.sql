@@ -1,0 +1,2 @@
+ALTER TABLE review 
+ALTER COLUMN rate TYPE NUMERIC(3, 1);

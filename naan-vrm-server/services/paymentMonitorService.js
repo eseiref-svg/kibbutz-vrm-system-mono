@@ -30,7 +30,7 @@ class PaymentMonitorService {
     });
 
     this.isRunning = true;
-    console.log('✅ Payment monitor service started - runs daily at 02:00');
+    console.log('Payment monitor service started - runs daily at 02:00');
   }
 
 
@@ -66,7 +66,7 @@ class PaymentMonitorService {
 
       const duration = ((Date.now() - startTime) / 1000).toFixed(2);
 
-      console.log(`✅ Daily check completed in ${duration}s`);
+      console.log(`Daily check completed in ${duration}s`);
       console.log(`   - Alerts created: ${alertsCreated}`);
       console.log(`   - Alerts updated: ${alertsUpdated}`);
 

@@ -8,6 +8,7 @@ import ExpensesChart from '../components/dashboard/ExpensesChart';
 import SupplierRequestsWidget from '../components/dashboard/SupplierRequestsWidget';
 import ClientRequestsWidget from '../components/dashboard/ClientRequestsWidget';
 import SalesApprovalWidget from '../components/dashboard/SalesApprovalWidget';
+import LowRatedSuppliersWidget from '../components/dashboard/LowRatedSuppliersWidget';
 import AddSupplierForm from '../components/AddSupplierForm';
 import ApproveClientModal from '../components/dashboard/ApproveClientModal';
 import Button from '../components/shared/Button';
@@ -194,6 +195,13 @@ function DashboardPage() {
             onUpdateRequest={handleRequestUpdate}
             onApproveRequest={handleApproveRequest}
           />
+
+          {/* Show Low Rated Suppliers for Treasurer/Admin */}
+          {!isCommunityManager && (
+            <div className="mb-8">
+              <LowRatedSuppliersWidget />
+            </div>
+          )}
 
           <ClientRequestsWidget
             requests={clientRequests}

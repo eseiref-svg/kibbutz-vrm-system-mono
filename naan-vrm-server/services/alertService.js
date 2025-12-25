@@ -131,7 +131,7 @@ class AlertService {
         const alertId = transactionQuery.rows[0].alert_id;
         await db.query('DELETE FROM alert WHERE alert_id = $1', [alertId]);
         await db.query('UPDATE transaction SET alert_id = NULL WHERE transaction_id = $1', [transactionId]);
-        console.log(`✅ Alert removed for paid transaction ${transactionId}`);
+        console.log(`Alert removed for paid transaction ${transactionId}`);
       }
     } catch (error) {
       console.error('Error removing alert:', error);
