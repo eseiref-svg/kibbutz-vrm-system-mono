@@ -53,6 +53,21 @@
 
 ---
 
+## Version 2.2.0 - Previous Release
+**Release Date:** 2024-12-19
+
+### Features
+- **Client Management**: Enhanced client management capabilities.
+- **QA Documentation**: Added QA sanity checks and documentation.
+- **System Stability**: Various bug fixes and improvements.
+
+#### קבצים חדשים
+- `README.md` - מדריך ראשי למערכת
+- `OPERATION_GUIDE.md` - מדריך הפעלה מלא
+- `RELEASE_NOTES.md` - מסמך זה
+
+---
+
 ## Version 2.1.0 - Monorepo Release
 **Release Date:** 27/10/2025  
 **Type:** Infrastructure Update
