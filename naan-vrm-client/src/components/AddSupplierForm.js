@@ -10,13 +10,17 @@ function AddSupplierForm({ open, onClose, onSupplierAdded, supplierFields, initi
   const [formData, setFormData] = useState({
     supplier_id: '',
     name: '',
-    address_id: 1,
+    address_id: null,
     poc_name: '',
     poc_phone: '',
     poc_email: '',
     supplier_field_id: 1,
     payment_terms_id: 1,
-    status: 'pending'
+    status: 'pending',
+    street: '',
+    house_no: '',
+    city: '',
+    zip_code: ''
   });
   const [errors, setErrors] = useState({});
 
@@ -39,13 +43,17 @@ function AddSupplierForm({ open, onClose, onSupplierAdded, supplierFields, initi
       setFormData({
         supplier_id: '',
         name: '',
-        address_id: 1,
+        address_id: null,
         poc_name: '',
         poc_phone: '',
         poc_email: '',
         supplier_field_id: 1,
         payment_terms_id: 1,
-        status: 'pending'
+        status: 'pending',
+        street: '',
+        house_no: '',
+        city: '',
+        zip_code: ''
       });
     }
   }, [initialData, open]);
@@ -182,6 +190,36 @@ function AddSupplierForm({ open, onClose, onSupplierAdded, supplierFields, initi
           required
           error={errors.poc_email}
         />
+
+        <div className="border-t pt-2 mt-2">
+          <h4 className="text-md font-semibold mb-2">כתובת</h4>
+          <div className="grid grid-cols-2 gap-4">
+            <Input
+              name="city"
+              label="עיר"
+              value={formData.city}
+              onChange={handleChange}
+            />
+            <Input
+              name="street"
+              label="רחוב"
+              value={formData.street}
+              onChange={handleChange}
+            />
+            <Input
+              name="house_no"
+              label="מס' בית"
+              value={formData.house_no}
+              onChange={handleChange}
+            />
+            <Input
+              name="zip_code"
+              label="מיקוד"
+              value={formData.zip_code}
+              onChange={handleChange}
+            />
+          </div>
+        </div>
       </div>
     </Modal>
   );

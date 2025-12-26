@@ -123,6 +123,12 @@ function SupplierDetailsCard({ supplier, onBackToList, onEdit }) {
               <p><strong>איש קשר:</strong> {supplier.poc_name || 'לא הוזן'}</p>
               <p><strong>טלפון:</strong> {supplier.poc_phone || 'לא הוזן'}</p>
               <p><strong>אימייל:</strong> {supplier.poc_email || 'לא הוזן'}</p>
+              <div className="mt-4 pt-4 border-t border-gray-300">
+                <h4 className="font-semibold mb-2">כתובת</h4>
+                <p><strong>עיר:</strong> {supplier.city || 'לא הוזן'}</p>
+                <p><strong>רחוב:</strong> {supplier.street_name || 'לא הוזן'} {supplier.house_no || ''}</p>
+                <p><strong>מיקוד:</strong> {supplier.zip_code || ''}</p>
+              </div>
             </div>
           </div>
         )}

@@ -2,35 +2,49 @@
 
 מדריך שינויים מלא בין כל גרסה וגרסה של מערכת ניהול הספקים (VRM).
 
-## Version 2.2.0 - Payment Logic & UX Enhancements
+## Version 2.5.0 - Supplier Requests & Address Management
+**Release Date:** 26/12/2025
+**Type:** Feature & Infrastructure Refactoring
 
+### שינויים עיקריים
+- **בקשות ספקים (Board Workflow)** - יישום מלא של תהליך בקשת ספק חדש ע"י מנהל ענף ואישורו ע"י גזבר.
+- **טבלת כתובות מרכזית** - יצירת טבלת `address` המרכזת את כל נתוני הכתובות במערכת (ספקים ולקוחות).
+- **הרחבת טפסים** - הוספת שדות כתובת מלאים (עיר, רחוב, מספר, מיקוד) בטפסי `RequestSupplierForm` ו-`SupplierDetails`.
+- **חיבור בקשות לכתובות** - קישור בקשות ספקים לטבלת הכתובות (Migration 011), כך שאישור בקשה יוצר אוטומטית ספק עם כתובת מקושרת.
+- **Shared Helper** - שימוש ב-`addressHelper` לטיפול אחיד ביצירה ועדכון של כתובות בקוד השרת.
+- **תאימות לאחור** - תמיכה בספקים ולקוחות קיימים ללא כתובות.
 
-#### דרישת תשלום מספק (Supplier Payment Request)
-- **יצירת דרישת תשלום** - מנהלי ענף יכולים ליצור דרישת תשלום לספק קיים ישירות מכרטיס הספק, הכוללת סכום, תאריך יעד, ומספר חשבונית/תיאור.
-- **תהליך אישור גזבר** - התווסף מנגנון אישור ייעודי בדשבורד הגזבר עבור דרישות תשלום מספקים (לצד אישור מכירות ללקוחות).
-- **מעקב ובקרה** - דרישות תשלום שאושרו נכנסות אוטומטית למעקב התשלומים (סטטוס 'Open') והוצאות הענף.
+### שיפורים טכניים
+- **Transactions** - שימוש בטרנזקציות (`BEGIN`, `COMMIT`, `ROLLBACK`) לשמירה על שלמות הנתונים בעת שמירת ספק/לקוח וכתובת.
+- **Database Migrations** - סקריפטים `008` עד `011` לניהול שינויי הסכמה (Addresses, Timestamps, Nullable IDs, Request Addresses).
 
+---
 
-#### דירוג איכות ספקים (Quality Rating)
-- **מערכת דירוג** - הוספת אפשרות לדרג ספקים (1-5 כוכבים) בכרטיס הספק תחת לשונית "ביצועים ודירוג".
-- **התראות בזמן אמת (Active Alerting)** - מנגנון **Monitoring** המזהה ירידה בממוצע הדירוג של ספק מתחת ל-3.0 ושולח התראה מיידית לגזבר ולמנהלי המערכת.
-- **דשבורד חשבונאי** - הוספת וידג'ט **"ספקים בסיכון"** בדשבורד הגזבר המרכז את כל הספקים בעלי ציון נמוך הדורשים בחינה מחדש.
+## Version 2.4.0 - Supplier Quality Rating
+**Release Date:** 22/12/2025
+**Type:** Feature
 
+### שינויים עיקריים
+- **Supplier Quality Rating & Control** - מערכת דירוג איכות לספקים.
 
-#### תהליך רישום לקוח אחוד (Hybrid Flow)
-- **טופס רישום משודרג** - הוספת אפשרות להזין **פרטי הצעת מחיר** (סכום, תנאי תשלום, תיאור) כבר בשלב רישום הלקוח החדש.
-- **אוטומציה חכמה** - במידה והוזנו פרטי תשלום, אישור הלקוח ע"י הגזבר יוצר **אוטומטית** גם את דרישת התשלום (מכירה) בסטטוס 'פתוח'.
-- **גמישות תפעולית** - תמיכה גם ברישום לקוח "רזה" (ללא פרטי תשלום) וגם ברישום מלא הכולל עסקה ראשונה מיידית.
+---
 
-#### שיפורי תשתית (Backend)
-- **Sequence Management** - תיקון וסנכרון מונים (Sequences) בבסיס הנתונים למניעת התנגשויות מזהים.
-- **Enhanced Validation** - בדיקות תקינות נוספות בעת יצירת בקשות לקוח.
+## Version 2.3.0 - Hybrid Client Flow
+**Release Date:** 22/12/2025
+**Type:** Feature
 
+### שינויים עיקריים
+- **Hybrid Client/Payment Req flow** - זרימה היברידית לבקשות תשלום ולקוחות.
 
-#### מנגנון תשלומים חכם (Smart Payments)
-- **חישוב מע״מ אוטומטי** - המערכת מחשבת אוטומטית 18% מע״מ בעת יצירת מכירה/דרישת תשלום.
-- **תנאי תשלום מתקדמים** - תמיכה מלאה בתנאי תשלום (שוטף+15, +30, +45, +60, +90).
-- **חישוב מועד פירעון (Payment Cycle Logic)** - אלגוריתם חכם המחשב את תאריך הפירעון הסופי לפי מחזורי התשלום של הקיבוץ (ה-5 או ה-20 לחודש) הקרובים ביותר לאחר ימי האשראי.
+---
+
+## Version 2.2.0 - Previous Release
+**Release Date:** 2024-12-19
+
+### Features
+- **Client Management**: Enhanced client management capabilities.
+- **QA Documentation**: Added QA sanity checks and documentation.
+- **System Stability**: Various bug fixes and improvements.
 
 #### שדרוג דשבורד גזבר (Treasurer Dashboard)
 - **וידג'טים חדשים** - הוחלפו קוביות הסטטיסטיקה הכלליות בשלושה מדדים ממוקדים לניהול תזרים:
@@ -50,21 +64,6 @@
 - **Shared Component** - פיתוח רכיב משותף (`TransactionInputSection`) המאחד את הלוגיקה (כולל חישוב תאריך פירעון) והעיצוב בין טפסי בקשת לקוח, דרישת תשלום, וכל טופס עתידי.
 - **Single Source of Truth** - לוגיקת החישובים (מע"מ, תאריכי תשלום) מנוהלת במקום אחד בלבד, מה שמבטיח התנהגות אחידה בכל המערכת.
 - **My Suppliers** - מנגנון חכם המציג אוטומטית ספקים פעילים ("הספקים שלי") בפורטל הענף לגישה מהירה ללא חיפוש.
-
----
-
-## Version 2.2.0 - Previous Release
-**Release Date:** 2024-12-19
-
-### Features
-- **Client Management**: Enhanced client management capabilities.
-- **QA Documentation**: Added QA sanity checks and documentation.
-- **System Stability**: Various bug fixes and improvements.
-
-#### קבצים חדשים
-- `README.md` - מדריך ראשי למערכת
-- `OPERATION_GUIDE.md` - מדריך הפעלה מלא
-- `RELEASE_NOTES.md` - מסמך זה
 
 ---
 
@@ -177,35 +176,11 @@ cd ../naan-vrm-client && npm install
 
 ---
 
-## Migration Instructions
-
-### מ-GitHub נפרד למונורפו
-
-אם יש לך את הפרויקטים הישנים:
-
-```bash
-# 1. שכפל את המונורפו החדש
-git clone https://github.com/eseiref-svg/kibbutz-vrm-system-mono.git
-cd kibbutz-vrm-system-mono
-
-# 2. העתק את הקבצים מה-repositories הישנים
-# (אופציונלי - אם יש שינויים שלא נשמרו)
-
-# 3. התקן dependencies
-cd naan-vrm-server && npm install
-cd ../naan-vrm-client && npm install
-
-# 4. הרץ את המערכת
-npm start  # במונורפו החדש
-```
-
----
-
 ## Versions Summary
 
 | Version | Date | Type | Summary |
 |---------|------|------|---------|
-| **2.5.0** | 24/12/2025 | Feature | Supplier Payment Requests |
+| **2.5.0** | 26/12/2025 | Feature | Supplier Requests & Centralized Addresses |
 | **2.4.0** | 22/12/2025 | Feature | Supplier Quality Rating & Control |
 | **2.3.0** | 22/12/2025 | Feature | Hybrid Client/Payment Req flow |
 | **2.2.0** | 22/12/2025 | Feature | Smart payments, VAT, Dashboard & UX |
@@ -238,5 +213,5 @@ npm start  # במונורפו החדש
 
 ---
 
-**Last Updated:** 24/12/2025  
+**Last Updated:** 26/12/2025  
 **Maintained by:** VRM Development Team

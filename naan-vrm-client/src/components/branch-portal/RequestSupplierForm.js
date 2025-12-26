@@ -11,7 +11,11 @@ function RequestSupplierForm({ open, onClose, onSuccess, userId, branchId }) {
     supplier_name: '',
     poc_name: '',
     poc_email: '',
-    poc_phone: ''
+    poc_phone: '',
+    street_name: '',
+    house_no: '',
+    city: '',
+    zip_code: ''
   });
   const [supplierFields, setSupplierFields] = useState([]);
   const [selectedField, setSelectedField] = useState('');
@@ -46,6 +50,9 @@ function RequestSupplierForm({ open, onClose, onSuccess, userId, branchId }) {
     const requiredFields = [
       { value: formData.supplier_name, name: 'supplier_name', label: 'שם הספק' },
       { value: formData.supplier_id, name: 'supplier_id', label: 'מספר ח.פ. ספק' },
+      { value: formData.city, name: 'city', label: 'עיר' },
+      { value: formData.street_name, name: 'street_name', label: 'רחוב' },
+      { value: formData.house_no, name: 'house_no', label: 'מספר בית' },
       { value: formData.poc_name, name: 'poc_name', label: 'שם איש קשר' },
       { value: formData.poc_phone, name: 'poc_phone', label: 'טלפון איש קשר' }
     ];
@@ -138,6 +145,42 @@ function RequestSupplierForm({ open, onClose, onSuccess, userId, branchId }) {
           error={validationErrors.supplier_id}
           helperText="עד 9 ספרות"
         />
+
+        <div className="grid grid-cols-2 gap-4">
+          <Input
+            name="city"
+            label="עיר"
+            value={formData.city}
+            onChange={handleChange}
+            required
+            error={validationErrors.city}
+          />
+          <Input
+            name="street_name"
+            label="רחוב"
+            value={formData.street_name}
+            onChange={handleChange}
+            required
+            error={validationErrors.street_name}
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <Input
+            name="house_no"
+            label="מספר בית"
+            value={formData.house_no}
+            onChange={handleChange}
+            required
+            error={validationErrors.house_no}
+          />
+          <Input
+            name="zip_code"
+            label="מיקוד"
+            value={formData.zip_code}
+            onChange={handleChange}
+            error={validationErrors.zip_code}
+          />
+        </div>
 
         <Select
           label="תחום הספק"

@@ -6,6 +6,7 @@ const cors = require('cors');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const auth = require('./middleware/auth');
+const addressHelper = require('./utils/addressHelper');
 const crypto = require('crypto');
 
 // Payment monitoring services
@@ -215,6 +216,72 @@ app.post('/api/users/reset-password', async (req, res) => {
 // ALL routes below this line will use the 'auth' middleware to ensure the user is logged in
 app.use(auth);
 
+app.get('/api/supplier-fields', async (req, res) => {
+  try {
+    const result = await db.query('SELECT * FROM supplier_field ORDER BY field');
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server Error');
+  }
+});
+
+app.post('/api/supplier-fields', async (req, res) => {
+  try {
+    const { field, tags } = req.body;
+
+    if (!field || !field.trim()) {
+      return res.status(400).json({ message: 'שם התחום הוא שדה חובה' });
+    }
+
+    // Check if field already exists
+    const existing = await db.query(
+      'SELECT * FROM supplier_field WHERE field = $1',
+      [field.trim()]
+    );
+
+    if (existing.rows.length > 0) {
+      return res.status(400).json({ message: 'תחום זה כבר קיים במערכת' });
+    }
+
+    // Create new field
+    const result = await db.query(
+      'INSERT INTO supplier_field (field, tags) VALUES ($1, $2) RETURNING *',
+      [field.trim(), tags || []]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server Error');
+  }
+});
+
+app.put('/api/supplier-fields/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { tags } = req.body;
+
+    if (!Array.isArray(tags)) {
+      return res.status(400).json({ message: 'Tags must be an array' });
+    }
+
+    const result = await db.query(
+      'UPDATE supplier_field SET tags = $1 WHERE supplier_field_id = $2 RETURNING *',
+      [tags, id]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ message: 'Supplier field not found' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server Error');
+  }
+});
+
 // Get all branches
 app.get('/api/branches', async (req, res) => {
   try {
@@ -359,10 +426,11 @@ app.get('/api/branches/:id/suppliers', async (req, res) => {
     // OR were requested by this branch (optional, but good for "My Suppliers")
     // We distinct by supplier_id
     const query = `
-      SELECT DISTINCT s.*, 
+      SELECT DISTINCT s.*, a.city, a.street_name, a.house_no, a.zip_code,
              COALESCE(AVG(r.rate), 0) as average_rating,
              COUNT(r.review_id) as total_reviews
       FROM supplier s
+      LEFT JOIN address a ON s.address_id = a.address_id
       LEFT JOIN review r ON s.supplier_id = r.supplier_id
       WHERE s.status != 'deleted' 
       AND (
@@ -370,7 +438,7 @@ app.get('/api/branches/:id/suppliers', async (req, res) => {
         OR
         s.supplier_id IN (SELECT requested_supplier_id FROM supplier_requests WHERE branch_id = $1 AND status = 'approved')
       )
-      GROUP BY s.supplier_id
+      GROUP BY s.supplier_id, a.address_id
       ORDER BY s.name
     `;
 
@@ -388,15 +456,19 @@ app.get('/api/suppliers/search', async (req, res) => {
     const { criteria } = req.query;
     const query = (req.query.query || '').trim();
 
+    const addressFields = 'a.city, a.street_name, a.house_no, a.zip_code';
+    const addressJoin = 'LEFT JOIN address a ON s.address_id = a.address_id';
+
     if (!query || !criteria) {
       const allSuppliers = await db.query(`
-        SELECT s.*, 
+        SELECT s.*, ${addressFields},
                COALESCE(AVG(r.rate), 0) as average_rating,
                COUNT(r.review_id) as total_reviews
         FROM supplier s
+        ${addressJoin}
         LEFT JOIN review r ON s.supplier_id = r.supplier_id
         WHERE s.status != 'deleted'
-        GROUP BY s.supplier_id
+        GROUP BY s.supplier_id, a.address_id
         ORDER BY s.name
       `);
       return res.json(allSuppliers.rows);
@@ -405,25 +477,27 @@ app.get('/api/suppliers/search', async (req, res) => {
     let result;
     if (criteria === 'name') {
       result = await db.query(`
-        SELECT s.*, 
+        SELECT s.*, ${addressFields},
                COALESCE(AVG(r.rate), 0) as average_rating,
                COUNT(r.review_id) as total_reviews
         FROM supplier s
+        ${addressJoin}
         LEFT JOIN review r ON s.supplier_id = r.supplier_id
         WHERE s.name ILIKE $1 AND s.status != 'deleted'
-        GROUP BY s.supplier_id
+        GROUP BY s.supplier_id, a.address_id
         ORDER BY s.name
       `, [`%${query}%`]);
     } else if (criteria === 'tag') {
       result = await db.query(`
-        SELECT s.*, 
+        SELECT s.*, ${addressFields},
                COALESCE(AVG(r.rate), 0) as average_rating,
                COUNT(r.review_id) as total_reviews
         FROM supplier s
+        ${addressJoin}
         JOIN supplier_field sf ON s.supplier_field_id = sf.supplier_field_id
         LEFT JOIN review r ON s.supplier_id = r.supplier_id
         WHERE (sf.field ILIKE $1 OR $2 = ANY(sf.tags)) AND s.status != 'deleted'
-        GROUP BY s.supplier_id
+        GROUP BY s.supplier_id, a.address_id
         ORDER BY s.name
       `, [`%${query}%`, query.toLowerCase()]);
     } else {
@@ -439,7 +513,14 @@ app.get('/api/suppliers/search', async (req, res) => {
 
 app.get('/api/suppliers/all-details', async (req, res) => {
   try {
-    const result = await db.query("SELECT s.*, sf.field FROM supplier s LEFT JOIN supplier_field sf ON s.supplier_field_id = sf.supplier_field_id WHERE s.status != 'deleted' ORDER BY s.name");
+    const result = await db.query(`
+      SELECT s.*, sf.field, a.city, a.street_name, a.house_no, a.zip_code
+      FROM supplier s 
+      LEFT JOIN supplier_field sf ON s.supplier_field_id = sf.supplier_field_id 
+      LEFT JOIN address a ON s.address_id = a.address_id
+      WHERE s.status != 'deleted' 
+      ORDER BY s.name
+    `);
     res.json(result.rows);
   } catch (err) {
     console.error(err.message);
@@ -485,7 +566,12 @@ app.get('/api/suppliers/:id/transactions', async (req, res) => {
 app.get('/api/suppliers/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const result = await db.query('SELECT * FROM supplier WHERE supplier_id = $1', [id]);
+    const result = await db.query(`
+      SELECT s.*, a.city, a.street_name, a.house_no, a.zip_code
+      FROM supplier s
+      LEFT JOIN address a ON s.address_id = a.address_id
+      WHERE s.supplier_id = $1
+    `, [id]);
     if (result.rows.length === 0) {
       return res.status(404).send('Supplier not found');
     }
@@ -497,34 +583,68 @@ app.get('/api/suppliers/:id', async (req, res) => {
 });
 
 app.post('/api/suppliers', async (req, res) => {
+  const client = await db.pool.connect();
   try {
-    const { name, poc_name, poc_email, poc_phone, supplier_field_id, status } = req.body;
-    const newSupplier = await db.query(
-      'INSERT INTO supplier (name, poc_name, poc_email, poc_phone, supplier_field_id, status) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-      [name, poc_name, poc_email, poc_phone, supplier_field_id, status]
+    const { name, poc_name, poc_email, poc_phone, supplier_field_id, status, street, street_name, house_no, city, zip_code } = req.body;
+
+    await client.query('BEGIN');
+
+    const addressId = await addressHelper.createAddress(client, { street: street || street_name, house_no, city, zip_code });
+
+    const newSupplier = await client.query(
+      'INSERT INTO supplier (name, poc_name, poc_email, poc_phone, supplier_field_id, status, address_id) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
+      [name, poc_name, poc_email, poc_phone, supplier_field_id, status, addressId]
     );
+
+    await client.query('COMMIT');
     res.status(201).json(newSupplier.rows[0]);
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error(err.message);
     res.status(500).send('Server Error');
+  } finally {
+    client.release();
   }
 });
 
 app.put('/api/suppliers/:id', async (req, res) => {
+  const client = await db.pool.connect();
   try {
     const { id } = req.params;
-    const { name, poc_name, poc_phone, poc_email, status, supplier_field_id } = req.body;
-    const updateSupplier = await db.query(
-      'UPDATE supplier SET name = $1, poc_name = $2, poc_phone = $3, poc_email = $4, status = $5, supplier_field_id = $6 WHERE supplier_id = $7 RETURNING *',
-      [name, poc_name, poc_phone, poc_email, status, supplier_field_id, id]
-    );
-    if (updateSupplier.rowCount === 0) {
+    const { name, poc_name, poc_phone, poc_email, status, supplier_field_id, street, street_name, house_no, city, zip_code } = req.body;
+
+    await client.query('BEGIN');
+
+    // Get current supplier to check address_id
+    const currentSupplier = await client.query('SELECT address_id FROM supplier WHERE supplier_id = $1', [id]);
+
+    if (currentSupplier.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ message: "Supplier not found" });
     }
+
+    let addressId = currentSupplier.rows[0].address_id;
+    const addressData = { street: street || street_name, house_no, city, zip_code };
+
+    if (addressId) {
+      await addressHelper.updateAddress(client, addressId, addressData);
+    } else {
+      addressId = await addressHelper.createAddress(client, addressData);
+    }
+
+    const updateSupplier = await client.query(
+      'UPDATE supplier SET name = $1, poc_name = $2, poc_phone = $3, poc_email = $4, status = $5, supplier_field_id = $6, address_id = $7 WHERE supplier_id = $8 RETURNING *',
+      [name, poc_name, poc_phone, poc_email, status, supplier_field_id, addressId, id]
+    );
+
+    await client.query('COMMIT');
     res.json(updateSupplier.rows[0]);
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error(err.message);
     res.status(500).send('Server Error');
+  } finally {
+    client.release();
   }
 });
 
@@ -558,11 +678,11 @@ app.get('/api/supplier-requests/pending', async (req, res) => {
 
 app.post('/api/supplier-requests', async (req, res) => {
   try {
-    const { requested_by_user_id, branch_id, supplier_id, supplier_name, poc_name, poc_email, poc_phone, supplier_field_id, new_supplier_field } = req.body;
+    const { requested_by_user_id, branch_id, supplier_id, supplier_name, poc_name, poc_email, poc_phone, supplier_field_id, new_supplier_field, city, street_name, house_no, zip_code } = req.body;
     const newRequest = await db.query(
-      `INSERT INTO supplier_requests (requested_by_user_id, branch_id, requested_supplier_id, supplier_name, poc_name, poc_email, poc_phone, supplier_field_id, new_supplier_field) 
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-      [requested_by_user_id, branch_id, supplier_id, supplier_name, poc_name, poc_email, poc_phone, supplier_field_id, new_supplier_field]
+      `INSERT INTO supplier_requests (requested_by_user_id, branch_id, requested_supplier_id, supplier_name, poc_name, poc_email, poc_phone, supplier_field_id, new_supplier_field, city, street_name, house_no, zip_code) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
+      [requested_by_user_id, branch_id, supplier_id, supplier_name, poc_name, poc_email, poc_phone, supplier_field_id, new_supplier_field, city, street_name, house_no, zip_code]
     );
 
     // Get current user name for the notification
@@ -597,37 +717,103 @@ app.put('/api/supplier-requests/:id', async (req, res) => {
     return res.status(400).json({ message: 'Invalid status' });
   }
 
-  try {
-    const updatedRequestResult = await db.query(
-      'UPDATE supplier_requests SET status = $1 WHERE request_id = $2 RETURNING *',
-      [status, id]
-    );
+  const client = await db.pool.connect();
 
-    if (updatedRequestResult.rowCount === 0) {
+  try {
+    await client.query('BEGIN');
+
+    // Fetch the request
+    const requestResult = await client.query('SELECT * FROM supplier_requests WHERE request_id = $1', [id]);
+    if (requestResult.rowCount === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ message: 'Request not found' });
     }
+    const request = requestResult.rows[0];
 
-    const request = updatedRequestResult.rows[0];
-
-    // Notify the branch manager
-    let message, type;
-    if (status === 'approved') {
-      message = `הבקשה להוספת ספק "${request.supplier_name}" אושרה`;
-      type = 'supplier_approved';
-    } else {
-      message = `הבקשה להוספת ספק "${request.supplier_name}" נדחתה`;
-      type = 'supplier_rejected';
+    // Check if already processed
+    if (request.status !== 'pending') {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ message: 'Request already processed' });
     }
 
-    await db.query(`
-      INSERT INTO notifications (user_id, message, type, created_at)
-      VALUES ($1, $2, $3, NOW())
-    `, [request.requested_by_user_id, message, type]);
+    let resultPayload = null;
 
-    res.json(updatedRequestResult.rows[0]);
+    if (status === 'approved') {
+      // 1. Check if supplier already exists? (Only for new suppliers logic really, but keeping it simple)
+      // If it's a new supplier request (requested_supplier_id is null usually, or if we support edits later)
+      if (request.requested_supplier_id) {
+        // Logic for existing supplier request (not implemented in this flow yet, but for safety)
+      }
+
+      // 2. Create Address
+      // request object now has: city, street_name, zip_code...
+      const addressId = await addressHelper.createAddress(client, {
+        city: request.city,
+        street_name: request.street_name,
+        house_no: request.house_no,
+        zip_code: request.zip_code,
+        phone_no: request.poc_phone, // Use POC phone as default address phone
+        additional: ''
+      });
+
+      // 3. Create Supplier
+      // If 'new_supplier_field' exists, we might need to handle it, but for now we look at supplier_field_id
+      // If supplier_field_id is null, it means it's a new field?
+      // Let's assume the field ID logic is handled or we default to 'General' (1)
+
+      const newSupplierFields = [
+        request.supplier_name,
+        request.poc_name,
+        request.poc_email,
+        request.poc_phone,
+        request.supplier_field_id || 1,
+        'active',
+        addressId,
+        1
+      ];
+
+      const createSupplierQuery = `
+            INSERT INTO supplier (name, poc_name, poc_email, poc_phone, supplier_field_id, status, address_id, payment_terms_id) 
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
+            RETURNING *
+        `;
+
+      const supplierResult = await client.query(createSupplierQuery, newSupplierFields);
+      const newSupplier = supplierResult.rows[0];
+
+      // Update the request with the created supplier ID
+      await client.query('UPDATE supplier_requests SET status = $1, requested_supplier_id = $2 WHERE request_id = $3', ['approved', newSupplier.supplier_id, id]);
+
+      resultPayload = newSupplier;
+
+      // Notify branch manager
+      await client.query(`
+          INSERT INTO notifications (user_id, message, type, created_at)
+          VALUES ($1, $2, 'supplier_approved', NOW())
+        `, [request.requested_by_user_id, `הבקשה להוספת ספק "${request.supplier_name}" אושרה`]);
+
+    } else {
+      // Rejected
+      await client.query('UPDATE supplier_requests SET status = $1 WHERE request_id = $2', ['rejected', id]);
+
+      // Notify branch manager
+      await client.query(`
+          INSERT INTO notifications (user_id, message, type, created_at)
+          VALUES ($1, $2, 'supplier_rejected', NOW())
+        `, [request.requested_by_user_id, `הבקשה להוספת ספק "${request.supplier_name}" נדחתה`]);
+
+      resultPayload = { message: 'Request rejected' };
+    }
+
+    await client.query('COMMIT');
+    res.json(resultPayload);
+
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error(err.message);
     res.status(500).send('Server Error');
+  } finally {
+    client.release();
   }
 });
 
@@ -1665,78 +1851,88 @@ app.get('/api/clients/:id/sales', async (req, res) => {
 });
 
 // Create new client
+// Create new client
 app.post('/api/clients', async (req, res) => {
+  const client = await db.pool.connect();
   try {
     const { name, poc_name, poc_phone, poc_email, city, street_name, house_no, zip_code } = req.body;
 
-    // Validation - address_id is NOT NULL in DB, so we must create an address
     if (!name || !poc_name || !poc_phone) {
       return res.status(400).json({ message: 'שם הלקוח, שם איש הקשר וטלפון הם שדות חובה' });
     }
 
-    // Insert address first (REQUIRED - address_id is NOT NULL)
-    // All address fields are required (NOT NULL), so provide defaults
-    const addressResult = await db.query(
-      'INSERT INTO address (city, street_name, house_no, zip_code, phone_no, additional) VALUES ($1, $2, $3, $4, $5, $6) RETURNING address_id',
-      [
-        city || 'לא צוין',
-        street_name || 'לא צוין',
-        house_no || 'לא צוין',
-        zip_code || '0000000',
-        poc_phone, // Use client's phone as address phone
-        ''
-      ]
-    );
-    const addressId = addressResult.rows[0].address_id;
+    await client.query('BEGIN');
+
+    // Insert address using helper
+    const addressId = await addressHelper.createAddress(client, {
+      city: city || 'לא צוין',
+      street_name: street_name || 'לא צוין',
+      house_no: house_no || 'לא צוין',
+      zip_code: zip_code || '0000000',
+      phone_no: poc_phone,
+      additional: ''
+    });
 
     // Insert client
-    const result = await db.query(
+    const result = await client.query(
       `INSERT INTO client (name, address_id, poc_name, poc_phone, poc_email) 
        VALUES ($1, $2, $3, $4, $5) RETURNING *`,
       [name, addressId, poc_name, poc_phone, poc_email || null]
     );
 
+    await client.query('COMMIT');
     res.status(201).json(result.rows[0]);
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error(err.message);
     res.status(500).send('Server Error');
+  } finally {
+    client.release();
   }
 });
 
 // Update client
+// Update client
 app.put('/api/clients/:id', async (req, res) => {
+  const client = await db.pool.connect();
   try {
     const { id } = req.params;
     const { name, poc_name, poc_phone, poc_email, city, street_name, house_no, zip_code } = req.body;
 
+    await client.query('BEGIN');
+
     // Get current client to check address_id
-    const currentClient = await db.query('SELECT address_id FROM client WHERE client_id = $1', [id]);
+    const currentClient = await client.query('SELECT address_id FROM client WHERE client_id = $1', [id]);
     if (currentClient.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ message: 'Client not found' });
     }
 
     let addressId = currentClient.rows[0].address_id;
 
     // Update address (address_id should always exist since it's NOT NULL)
-    if (addressId && (city || street_name || house_no || zip_code)) {
-      await db.query(
-        'UPDATE address SET city = COALESCE($1, city), street_name = COALESCE($2, street_name), house_no = COALESCE($3, house_no), zip_code = COALESCE($4, zip_code), phone_no = COALESCE($5, phone_no) WHERE address_id = $6',
-        [city, street_name, house_no, zip_code, poc_phone, addressId]
-      );
+    if (addressId) {
+      await addressHelper.updateAddress(client, addressId, {
+        city, street_name, house_no, zip_code, phone_no: poc_phone
+      });
     }
 
-    // Update client (removed status field)
-    const result = await db.query(
+    // Update client
+    const result = await client.query(
       `UPDATE client 
        SET name = $1, poc_name = $2, poc_phone = $3, poc_email = $4
        WHERE client_id = $5 RETURNING *`,
       [name, poc_name, poc_phone, poc_email, id]
     );
 
+    await client.query('COMMIT');
     res.json(result.rows[0]);
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error(err.message);
     res.status(500).send('Server Error');
+  } finally {
+    client.release();
   }
 });
 
@@ -1908,13 +2104,13 @@ app.get('/api/client-requests/:id', auth, async (req, res) => {
 
 // Approve client request (Accounting/Treasurer)
 app.put('/api/client-requests/:id/approve', auth, async (req, res) => {
+  const client = await db.pool.connect();
   try {
     const { id } = req.params;
     const {
       review_notes,
-      client_number,  // Required: business identifier entered by treasurer
-      payment_terms,  // New: default payment terms
-      // Allow editing of client details
+      client_number,
+      payment_terms,
       client_name,
       poc_name,
       poc_phone,
@@ -1926,39 +2122,40 @@ app.put('/api/client-requests/:id/approve', auth, async (req, res) => {
     } = req.body;
     const reviewed_by_user_id = req.user.id;
 
-    // Validate required fields
     if (!client_number || !client_number.toString().trim()) {
       return res.status(400).json({ message: 'מספר לקוח הוא שדה חובה' });
     }
 
-    // Get request details
-    const requestResult = await db.query(
+    await client.query('BEGIN');
+
+    const requestResult = await client.query(
       'SELECT * FROM client_request WHERE request_id = $1',
       [id]
     );
 
     if (requestResult.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ message: 'Request not found' });
     }
 
     const request = requestResult.rows[0];
 
     if (request.status !== 'pending') {
+      await client.query('ROLLBACK');
       return res.status(400).json({ message: 'Request already processed' });
     }
 
-    // Check if client_number is unique (business identifier)
     const clientNumberValue = client_number.toString().trim();
-    const existingClient = await db.query(
+    const existingClient = await client.query(
       'SELECT client_id FROM client WHERE client_number = $1',
       [clientNumberValue]
     );
 
     if (existingClient.rows.length > 0) {
+      await client.query('ROLLBACK');
       return res.status(400).json({ message: 'מספר לקוח זה כבר קיים במערכת' });
     }
 
-    // Use provided values or fall back to request values
     const finalClientName = client_name || request.client_name;
     const finalPocName = poc_name || request.poc_name;
     const finalPocPhone = poc_phone || request.poc_phone;
@@ -1969,25 +2166,18 @@ app.put('/api/client-requests/:id/approve', auth, async (req, res) => {
     const finalZipCode = zip_code || request.zip_code || '0000000';
     const finalPaymentTerms = payment_terms || 'current_50';
 
-    // Create new client ONLY (no transaction, no sale)
-    // 1. Create address
-    const addressResult = await db.query(`
-      INSERT INTO address (city, street_name, house_no, zip_code, phone_no, additional)
-      VALUES ($1, $2, $3, $4, $5, $6)
-      RETURNING address_id
-    `, [
-      finalCity,
-      finalStreetName,
-      finalHouseNo,
-      finalZipCode,
-      finalPocPhone,
-      ''
-    ]);
-    const addressId = addressResult.rows[0].address_id;
+    // 1. Create address using helper
+    const addressId = await addressHelper.createAddress(client, {
+      city: finalCity,
+      street_name: finalStreetName,
+      house_no: finalHouseNo,
+      zip_code: finalZipCode,
+      phone_no: finalPocPhone,
+      additional: ''
+    });
 
-    // 2. Create client with client_number (business identifier) and default_payment_terms
-    // Note: client_id is AUTO_INCREMENT (technical), client_number is business identifier (entered by treasurer, will come from ERP)
-    const clientResult = await db.query(`
+    // 2. Create client
+    const clientResult = await client.query(`
       INSERT INTO client (name, address_id, poc_name, poc_phone, poc_email, client_number, default_payment_terms)
       VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING *
@@ -2009,7 +2199,6 @@ app.put('/api/client-requests/:id/approve', auth, async (req, res) => {
       try {
         console.log(`Auto-creating sale for request ${id} (Amount: ${request.quote_value})`);
 
-        // Calculate Due Date
         const terms = request.payment_terms || 'immediate';
         const now = new Date();
         let dueDate = new Date(now);
@@ -2018,8 +2207,7 @@ app.put('/api/client-requests/:id/approve', auth, async (req, res) => {
         else if (terms === 'plus_60') dueDate.setDate(now.getDate() + 60);
         else if (terms === 'plus_90') dueDate.setDate(now.getDate() + 90);
 
-        // Create Transaction (Status 'open' as it is approved)
-        const trxResult = await db.query(`
+        const trxResult = await client.query(`
           INSERT INTO transaction (value, due_date, status, description)
           VALUES ($1, $2, 'open', $3)
           RETURNING transaction_id
@@ -2030,8 +2218,7 @@ app.put('/api/client-requests/:id/approve', auth, async (req, res) => {
         ]);
         const transactionId = trxResult.rows[0].transaction_id;
 
-        // Create Sale
-        const saleResult = await db.query(`
+        const saleResult = await client.query(`
           INSERT INTO sale (client_id, branch_id, transaction_id, payment_terms, invoice_number)
           VALUES ($1, $2, $3, $4, $5)
           RETURNING sale_id
@@ -2040,18 +2227,18 @@ app.put('/api/client-requests/:id/approve', auth, async (req, res) => {
           request.branch_id,
           transactionId,
           terms,
-          `REQ-${request.request_id}` // Temporary invoice number reference
+          `REQ-${request.request_id}`
         ]);
         approvedSaleId = saleResult.rows[0].sale_id;
         console.log(`Created Sale ID: ${approvedSaleId}`);
       } catch (saleErr) {
         console.error('Error auto-creating sale:', saleErr);
-        // Continue - don't fail the whole request approval just because sale creation failed (though it's bad)
+        // Continue, but maybe log it better
       }
     }
 
-    // 3. Update request status and link to created client/sale
-    await db.query(`
+    // 3. Update request status
+    await client.query(`
       UPDATE client_request
       SET status = 'approved', 
           reviewed_by_user_id = $1, 
@@ -2063,8 +2250,8 @@ app.put('/api/client-requests/:id/approve', auth, async (req, res) => {
       WHERE request_id = $5
     `, [reviewed_by_user_id, review_notes || null, newClient.client_id, approvedSaleId, id]);
 
-    // 4. Notify the branch manager
-    await db.query(`
+    // 4. Notify branch manager
+    await client.query(`
       INSERT INTO notifications (user_id, message, type, created_at)
       VALUES ($1, $2, 'success', NOW())
     `, [
@@ -2072,16 +2259,21 @@ app.put('/api/client-requests/:id/approve', auth, async (req, res) => {
       `הבקשה לרישום לקוח "${finalClientName}" אושרה - הלקוח זמין כעת ליצירת דרישות תשלום`
     ]);
 
+    await client.query('COMMIT');
+
     res.json({
       message: 'Client request approved successfully',
       client: newClient
     });
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error(err.message);
     res.status(500).json({
       message: 'Server Error',
       error: err.message
     });
+  } finally {
+    client.release();
   }
 });
 
