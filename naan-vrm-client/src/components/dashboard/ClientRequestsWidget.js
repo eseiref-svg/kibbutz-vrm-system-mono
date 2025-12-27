@@ -81,7 +81,7 @@ function ClientRequestsWidget({ requests, onUpdateRequest, onApproveRequest }) {
           <tbody>
             {requests.map(req => (
               <tr
-                key={req.request_id}
+                key={req.client_req_id}
                 className="border-b hover:bg-gray-50 cursor-pointer transition-colors"
                 onClick={() => handleRowClick(req)}
               >
@@ -111,7 +111,7 @@ function ClientRequestsWidget({ requests, onUpdateRequest, onApproveRequest }) {
                     <Button
                       size="sm"
                       variant="danger"
-                      onClick={() => handleReject(req.request_id)}
+                      onClick={() => handleReject(req.client_req_id)}
                     >
                       דחה
                     </Button>

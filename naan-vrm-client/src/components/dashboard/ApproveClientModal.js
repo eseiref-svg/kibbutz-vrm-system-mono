@@ -88,7 +88,7 @@ function ApproveClientModal({ isOpen, onClose, clientRequest, onApprove }) {
 
     setSubmitting(true);
     try {
-      await onApprove(clientRequest.request_id, formData);
+      await onApprove(clientRequest.client_req_id, formData);
       onClose();
     } catch (error) {
       console.error('Error approving client:', error);

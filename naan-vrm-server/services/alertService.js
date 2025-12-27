@@ -71,13 +71,15 @@ class AlertService {
       const title = this.generateNotificationTitle(alertType, daysUntilDue);
 
       const query = `
-        INSERT INTO notifications (user_id, title, message, type, is_read, created_at)
-        VALUES ($1, $2, $3, $4, FALSE, NOW())
+        INSERT INTO notification (user_id, message, type, is_read, created_at)
+        VALUES ($1, $2, $3, FALSE, NOW())
         RETURNING *
       `;
 
       const notificationType = alertType === 'payment_overdue' ? 'alert' : 'info';
-      const result = await db.query(query, [userId, title, message, notificationType]);
+      // Concatenate title to message if needed or just drop it. 
+      // Message format in generateNotificationMessage is detailed enough.
+      const result = await db.query(query, [userId, message, notificationType]);
 
       console.log(`Notification sent to user ${userId} for transaction ${transaction.transaction_id}`);
       return result.rows[0];
@@ -153,11 +155,13 @@ class AlertService {
   async sendActionNotification(userId, title, message, type = 'action_required') {
     try {
       const query = `
-        INSERT INTO notifications (user_id, title, message, type, is_read, created_at)
-        VALUES ($1, $2, $3, $4, FALSE, NOW())
+        INSERT INTO notification (user_id, message, type, is_read, created_at)
+        VALUES ($1, $2, $3, FALSE, NOW())
         RETURNING *
       `;
-      const result = await db.query(query, [userId, title, message, type]);
+      // Prepend title to message for context
+      const fullMessage = `${title}: ${message}`;
+      const result = await db.query(query, [userId, fullMessage, type]);
       console.log(`Notification (${type}) sent to user ${userId}: ${title}`);
       return result.rows[0];
     } catch (error) {

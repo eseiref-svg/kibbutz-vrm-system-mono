@@ -18,6 +18,14 @@
 - **Transactions** - שימוש בטרנזקציות (`BEGIN`, `COMMIT`, `ROLLBACK`) לשמירה על שלמות הנתונים בעת שמירת ספק/לקוח וכתובת.
 - **Database Migrations** - סקריפטים `008` עד `011` לניהול שינויי הסכמה (Addresses, Timestamps, Nullable IDs, Request Addresses).
 
+### תיקוני באגים (Bug Fixes)
+- **Payment Requests** - תיקון שגיאת `permissions_id` ע"י עדכון שאילתת ההתראות לשימוש בעמודת `role` החדשה.
+- **Data Integrity** - שינוי סוג `payment_req_no` למספר שלם (Integer) למניעת שגיאות בסיס נתונים.
+- **Server Notifications** - טיפול שגיאות משופר במנגנון ההתראות למניעת קריסת בקשות במקרה של כישלון בשליחת התראה.
+
+### בעיות ידועות (Known Issues)
+- **Branch Authorization** - נקודות הקצה של `/api/branches/:id/*` אינן אוכפות הרשאות גישה נכון למועד. מנהלי ענף יכולים לגשת לענפים שאינם משויכים אליהם. תיקון מתוכנן לגרסה הבאה. (ticket #AUTH-001)
+
 ---
 
 ## Version 2.4.0 - Supplier Quality Rating

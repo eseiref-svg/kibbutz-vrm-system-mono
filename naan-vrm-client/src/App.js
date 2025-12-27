@@ -33,7 +33,7 @@ function ProtectedRoute({ children }) {
 function Header() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const isTreasurer = user?.role_id === 1 || user?.role_id === 2 || user?.role_id === 5;
+  const isTreasurer = ['admin', 'treasurer', 'community_manager', 'bookkeeper'].includes(user?.role);
 
   const handleLogout = () => {
     logout();
@@ -75,7 +75,7 @@ function Header() {
 
 function AppRoutes() {
   const { user } = useAuth();
-  const isTreasurer = user?.role_id === 1 || user?.role_id === 2 || user?.role_id === 5;
+  const isTreasurer = ['admin', 'treasurer', 'community_manager', 'bookkeeper'].includes(user?.role);
 
   return (
     <Routes>

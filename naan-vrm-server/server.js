@@ -8,10 +8,14 @@ const jwt = require('jsonwebtoken');
 const auth = require('./middleware/auth');
 const addressHelper = require('./utils/addressHelper');
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 
 // Payment monitoring services
 const paymentMonitorService = require('./services/paymentMonitorService');
 const alertService = require('./services/alertService');
+const paymentCalculations = require('./utils/paymentCalculations');
+
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -100,11 +104,11 @@ app.put('/api/dashboard/bank-balance', auth, async (req, res) => {
     const { value } = req.body;
     const userId = req.user.id;
 
-    // Check if permissions_id is 2 (Treasurer) or 1 (Admin)
-    const userResult = await db.query('SELECT permissions_id FROM "user" WHERE user_id = $1', [userId]);
-    const roleId = userResult.rows[0].permissions_id;
+    // Check if role is Treasurer or Admin
+    const userResult = await db.query('SELECT role FROM "user" WHERE user_id = $1', [userId]);
+    const userRole = userResult.rows[0].role;
 
-    if (roleId !== 1 && roleId !== 2) {
+    if (!['admin', 'treasurer'].includes(userRole)) {
       return res.status(403).json({ message: 'Unauthorized. Only Treasurer can update bank balance.' });
     }
 
@@ -136,7 +140,7 @@ app.put('/api/dashboard/bank-balance', auth, async (req, res) => {
 
 app.post('/api/users/register', async (req, res) => {
   try {
-    const { first_name, surname, email, phone_no, password, permissions_id } = req.body;
+    const { first_name, surname, email, phone_no, password, role } = req.body;
     const user = await db.query('SELECT * FROM "user" WHERE email = $1', [email]);
     if (user.rows.length > 0) {
       return res.status(400).json({ message: 'Email already exists' });
@@ -144,8 +148,8 @@ app.post('/api/users/register', async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
     const newUser = await db.query(
-      'INSERT INTO "user" (first_name, surname, email, phone_no, password, permissions_id, status) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING user_id, email, first_name',
-      [first_name, surname, email, phone_no, passwordHash, permissions_id, 'active']
+      'INSERT INTO "user" (first_name, surname, email, phone_no, password, role, status) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING user_id, email, first_name',
+      [first_name, surname, email, phone_no, passwordHash, role, 'active']
     );
     res.status(201).json(newUser.rows[0]);
   } catch (err) {
@@ -169,14 +173,14 @@ app.post('/api/users/login', async (req, res) => {
     if (!isMatch) {
       return res.status(400).json({ message: 'פרטי ההתחברות שגויים' });
     }
-    const payload = { user: { id: user.user_id, role_id: user.permissions_id } };
+    const payload = { user: { id: user.user_id, role: user.role } };
     jwt.sign(
       payload,
       process.env.JWT_SECRET,
       { expiresIn: '1h' },
       (err, token) => {
         if (err) throw err;
-        res.json({ token, user: { id: user.user_id, role_id: user.permissions_id, name: user.first_name } });
+        res.json({ token, user: { id: user.user_id, role: user.role, name: user.first_name } });
       }
     );
   } catch (err) {
@@ -436,7 +440,7 @@ app.get('/api/branches/:id/suppliers', async (req, res) => {
       AND (
         s.supplier_id IN (SELECT supplier_id FROM payment_req WHERE branch_id = $1)
         OR
-        s.supplier_id IN (SELECT requested_supplier_id FROM supplier_requests WHERE branch_id = $1 AND status = 'approved')
+        s.supplier_id IN (SELECT requested_supplier_id FROM supplier_request WHERE branch_id = $1 AND status = 'approved')
       )
       GROUP BY s.supplier_id, a.address_id
       ORDER BY s.name
@@ -585,15 +589,33 @@ app.get('/api/suppliers/:id', async (req, res) => {
 app.post('/api/suppliers', async (req, res) => {
   const client = await db.pool.connect();
   try {
-    const { name, poc_name, poc_email, poc_phone, supplier_field_id, status, street, street_name, house_no, city, zip_code } = req.body;
+    const { name, poc_name, poc_email, poc_phone, supplier_field_id, new_supplier_field, status, street, street_name, house_no, city, zip_code, payment_terms } = req.body;
 
     await client.query('BEGIN');
 
-    const addressId = await addressHelper.createAddress(client, { street: street || street_name, house_no, city, zip_code });
+    // Handle New Supplier Field Creation
+    let finalFieldId = supplier_field_id;
+    if (new_supplier_field && (!supplier_field_id || supplier_field_id === 'new')) {
+      // Check if exists
+      const fieldCheck = await client.query('SELECT supplier_field_id FROM supplier_field WHERE field = $1', [new_supplier_field.trim()]);
+      if (fieldCheck.rows.length > 0) {
+        finalFieldId = fieldCheck.rows[0].supplier_field_id;
+      } else {
+        const newFieldRes = await client.query('INSERT INTO supplier_field (field, tags) VALUES ($1, $2) RETURNING supplier_field_id', [new_supplier_field.trim(), []]);
+        finalFieldId = newFieldRes.rows[0].supplier_field_id;
+      }
+    }
+
+
+
+    const addressId = await addressHelper.createAddress(client, { street: street || street_name, house_no, city, zip_code, phone_no: poc_phone });
+
+    // Default status to 'approved' if not provided (valid values: approved, pending, rejected, deleted)
+    const finalStatus = status || 'approved';
 
     const newSupplier = await client.query(
-      'INSERT INTO supplier (name, poc_name, poc_email, poc_phone, supplier_field_id, status, address_id) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
-      [name, poc_name, poc_email, poc_phone, supplier_field_id, status, addressId]
+      'INSERT INTO supplier (name, poc_name, poc_email, poc_phone, supplier_field_id, status, address_id, payment_terms) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
+      [name, poc_name, poc_email, poc_phone, finalFieldId, finalStatus, addressId, payment_terms || 'immediate']
     );
 
     await client.query('COMMIT');
@@ -664,7 +686,7 @@ app.get('/api/supplier-requests/pending', async (req, res) => {
   try {
     const result = await db.query(`
         SELECT sr.*, u.first_name || ' ' || u.surname as requested_by, b.name as branch_name
-        FROM supplier_requests sr
+        FROM supplier_request sr
         JOIN "user" u ON sr.requested_by_user_id = u.user_id
         JOIN branch b ON sr.branch_id = b.branch_id
         WHERE sr.status = 'pending' ORDER BY sr.created_at DESC
@@ -676,13 +698,52 @@ app.get('/api/supplier-requests/pending', async (req, res) => {
   }
 });
 
-app.post('/api/supplier-requests', async (req, res) => {
+app.post('/api/supplier-requests', auth, async (req, res) => {
   try {
     const { requested_by_user_id, branch_id, supplier_id, supplier_name, poc_name, poc_email, poc_phone, supplier_field_id, new_supplier_field, city, street_name, house_no, zip_code } = req.body;
+
+    let finalSupplierId = supplier_id;
+    let finalSupplierName = supplier_name;
+    let finalPocName = poc_name;
+    let finalPocEmail = poc_email;
+    let finalPocPhone = poc_phone;
+    let finalCity = city;
+    let finalStreet = street_name;
+    let finalHouseNo = house_no;
+    let finalZip = zip_code;
+
+    // If existing supplier, fetch details if missing
+    if (finalSupplierId) {
+      const supplierResult = await db.query(`
+        SELECT s.*, a.city, a.street_name, a.house_no, a.zip_code 
+        FROM supplier s
+        LEFT JOIN address a ON s.address_id = a.address_id
+        WHERE s.supplier_id = $1
+      `, [finalSupplierId]);
+
+      if (supplierResult.rows.length > 0) {
+        const s = supplierResult.rows[0];
+        if (!finalSupplierName) finalSupplierName = s.name;
+        if (!finalPocName) finalPocName = s.poc_name;
+        if (!finalPocEmail) finalPocEmail = s.poc_email;
+        if (!finalPocPhone) finalPocPhone = s.poc_phone;
+        if (!finalCity) finalCity = s.city;
+        if (!finalStreet) finalStreet = s.street_name;
+        if (!finalHouseNo) finalHouseNo = s.house_no;
+        if (!finalZip) finalZip = s.zip_code;
+      }
+    }
+
+    // Handle 'new' value for integer column
+    let finalFieldId = supplier_field_id;
+    if (finalFieldId === 'new') {
+      finalFieldId = null;
+    }
+
     const newRequest = await db.query(
-      `INSERT INTO supplier_requests (requested_by_user_id, branch_id, requested_supplier_id, supplier_name, poc_name, poc_email, poc_phone, supplier_field_id, new_supplier_field, city, street_name, house_no, zip_code) 
+      `INSERT INTO supplier_request (requested_by_user_id, branch_id, requested_supplier_id, supplier_name, poc_name, poc_email, poc_phone, supplier_field_id, new_supplier_field, city, street_name, house_no, zip_code) 
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
-      [requested_by_user_id, branch_id, supplier_id, supplier_name, poc_name, poc_email, poc_phone, supplier_field_id, new_supplier_field, city, street_name, house_no, zip_code]
+      [requested_by_user_id, branch_id, finalSupplierId, finalSupplierName, finalPocName, finalPocEmail, finalPocPhone, finalFieldId, new_supplier_field, finalCity, finalStreet, finalHouseNo, finalZip]
     );
 
     // Get current user name for the notification
@@ -690,14 +751,13 @@ app.post('/api/supplier-requests', async (req, res) => {
     const userName = userResult.rows[0] ? `${userResult.rows[0].first_name} ${userResult.rows[0].surname}` : 'משתמש';
 
     // Notify Admins and Treasurers about the new request
-    // Role 5 = Community Manager, Role 3 = Treasurer (Assumption - need to verify roles if unsure, but typically these roles approved requests)
-    const adminsResult = await db.query('SELECT user_id FROM "user" WHERE permissions_id IN (3, 5)');
+    const notifiablesResult = await db.query("SELECT user_id FROM \"user\" WHERE role IN ('admin', 'treasurer')");
 
-    for (const admin of adminsResult.rows) {
+    for (const admin of notifiablesResult.rows) {
       await alertService.sendActionNotification(
         admin.user_id,
         'בקשה לספק חדש',
-        `התקבלה בקשה חדשה מ-${userName} להוספת הספק: ${supplier_name}`,
+        `התקבלה בקשה חדשה מ-${userName} להוספת הספק: ${finalSupplierName}`,
         'action_required'
       );
     }
@@ -723,7 +783,7 @@ app.put('/api/supplier-requests/:id', async (req, res) => {
     await client.query('BEGIN');
 
     // Fetch the request
-    const requestResult = await client.query('SELECT * FROM supplier_requests WHERE request_id = $1', [id]);
+    const requestResult = await client.query('SELECT * FROM supplier_request WHERE supplier_req_id = $1', [id]);
     if (requestResult.rowCount === 0) {
       await client.query('ROLLBACK');
       return res.status(404).json({ message: 'Request not found' });
@@ -739,68 +799,95 @@ app.put('/api/supplier-requests/:id', async (req, res) => {
     let resultPayload = null;
 
     if (status === 'approved') {
-      // 1. Check if supplier already exists? (Only for new suppliers logic really, but keeping it simple)
-      // If it's a new supplier request (requested_supplier_id is null usually, or if we support edits later)
-      if (request.requested_supplier_id) {
-        // Logic for existing supplier request (not implemented in this flow yet, but for safety)
+      const { requested_supplier_id } = req.body;
+      let newSupplierId = requested_supplier_id;
+
+      let supplierNameForNotify = request.supplier_name;
+
+      if (!newSupplierId) {
+        // 2. Create Address
+        // request object now has: city, street_name, zip_code...
+        // ... (Existing logic only runs if NO ID provided)
+        const addressId = await addressHelper.createAddress(client, {
+          city: request.city,
+          street_name: request.street_name,
+          house_no: request.house_no,
+          zip_code: request.zip_code,
+          phone_no: request.poc_phone,
+          additional: ''
+        });
+
+        // 3. Create Supplier
+        let finalSupplierFieldId = request.supplier_field_id;
+
+        // Handle new supplier field creation if needed
+        if (!finalSupplierFieldId && request.new_supplier_field) {
+          const fieldName = request.new_supplier_field.trim();
+          // Check if exists first to avoid duplicates
+          const existingFieldRes = await client.query('SELECT supplier_field_id FROM supplier_field WHERE field = $1', [fieldName]);
+
+          if (existingFieldRes.rows.length > 0) {
+            finalSupplierFieldId = existingFieldRes.rows[0].supplier_field_id;
+          } else {
+            const newFieldRes = await client.query(
+              'INSERT INTO supplier_field (field, tags) VALUES ($1, $2) RETURNING supplier_field_id',
+              [fieldName, []]
+            );
+            finalSupplierFieldId = newFieldRes.rows[0].supplier_field_id;
+          }
+        }
+
+        const newSupplierFields = [
+          request.supplier_name,
+          request.poc_name,
+          request.poc_email,
+          request.poc_phone,
+          finalSupplierFieldId || 1, // Fallback to 1 only if truly no info
+          'approved', // Use 'approved' directly to match constraint
+          addressId,
+          'plus_35'
+        ];
+
+        const createSupplierQuery = `
+                INSERT INTO supplier (name, poc_name, poc_email, poc_phone, supplier_field_id, status, address_id, payment_terms) 
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
+                RETURNING *
+            `;
+
+        const supplierResult = await client.query(createSupplierQuery, newSupplierFields);
+        newSupplierId = supplierResult.rows[0].supplier_id;
+        resultPayload = supplierResult.rows[0];
+      } else {
+        // Just fetch the name for notification
+        const existingSup = await client.query('SELECT name FROM supplier WHERE supplier_id = $1', [newSupplierId]);
+        if (existingSup.rows.length > 0) supplierNameForNotify = existingSup.rows[0].name;
+        resultPayload = { supplier_id: newSupplierId, message: 'Request approved and linked.' };
       }
 
-      // 2. Create Address
-      // request object now has: city, street_name, zip_code...
-      const addressId = await addressHelper.createAddress(client, {
-        city: request.city,
-        street_name: request.street_name,
-        house_no: request.house_no,
-        zip_code: request.zip_code,
-        phone_no: request.poc_phone, // Use POC phone as default address phone
-        additional: ''
-      });
-
-      // 3. Create Supplier
-      // If 'new_supplier_field' exists, we might need to handle it, but for now we look at supplier_field_id
-      // If supplier_field_id is null, it means it's a new field?
-      // Let's assume the field ID logic is handled or we default to 'General' (1)
-
-      const newSupplierFields = [
-        request.supplier_name,
-        request.poc_name,
-        request.poc_email,
-        request.poc_phone,
-        request.supplier_field_id || 1,
-        'active',
-        addressId,
-        1
-      ];
-
-      const createSupplierQuery = `
-            INSERT INTO supplier (name, poc_name, poc_email, poc_phone, supplier_field_id, status, address_id, payment_terms_id) 
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
-            RETURNING *
-        `;
-
-      const supplierResult = await client.query(createSupplierQuery, newSupplierFields);
-      const newSupplier = supplierResult.rows[0];
-
       // Update the request with the created supplier ID
-      await client.query('UPDATE supplier_requests SET status = $1, requested_supplier_id = $2 WHERE request_id = $3', ['approved', newSupplier.supplier_id, id]);
+      await client.query('UPDATE supplier_request SET status = $1, requested_supplier_id = $2 WHERE supplier_req_id = $3', ['approved', newSupplierId, id]);
 
-      resultPayload = newSupplier;
-
-      // Notify branch manager
-      await client.query(`
-          INSERT INTO notifications (user_id, message, type, created_at)
-          VALUES ($1, $2, 'supplier_approved', NOW())
-        `, [request.requested_by_user_id, `הבקשה להוספת ספק "${request.supplier_name}" אושרה`]);
+      // Notify branch manager if user ID exists
+      if (request.requested_by_user_id) {
+        await client.query(`
+            INSERT INTO notification (user_id, message, type, created_at)
+            VALUES ($1, $2, 'supplier_approved', NOW())
+          `, [request.requested_by_user_id, `הבקשה להוספת ספק "${supplierNameForNotify}" אושרה`]);
+      }
 
     } else {
       // Rejected
-      await client.query('UPDATE supplier_requests SET status = $1 WHERE request_id = $2', ['rejected', id]);
+      const { rejection_reason } = req.body;
+      await client.query('UPDATE supplier_request SET status = $1 WHERE supplier_req_id = $2', ['rejected', id]);
 
       // Notify branch manager
-      await client.query(`
-          INSERT INTO notifications (user_id, message, type, created_at)
-          VALUES ($1, $2, 'supplier_rejected', NOW())
-        `, [request.requested_by_user_id, `הבקשה להוספת ספק "${request.supplier_name}" נדחתה`]);
+      if (request.requested_by_user_id) {
+        const rejectionMsg = `הבקשה להוספת ספק "${request.supplier_name}" נדחתה` + (rejection_reason ? `. סיבה: ${rejection_reason}` : '.');
+        await client.query(`
+              INSERT INTO notification (user_id, message, type, created_at)
+              VALUES ($1, $2, 'supplier_rejected', NOW())
+            `, [request.requested_by_user_id, rejectionMsg]);
+      }
 
       resultPayload = { message: 'Request rejected' };
     }
@@ -820,7 +907,7 @@ app.put('/api/supplier-requests/:id', async (req, res) => {
 // --- User Management Routes (Protected) ---
 app.get('/api/users', async (req, res) => {
   try {
-    const result = await db.query('SELECT user_id, first_name, surname, email, phone_no, permissions_id, status FROM "user" ORDER BY surname, first_name');
+    const result = await db.query('SELECT user_id, first_name, surname, email, phone_no, role, status FROM "user" ORDER BY surname, first_name');
     res.json(result.rows);
   } catch (err) {
     console.error(err.message);
@@ -860,10 +947,10 @@ app.post('/api/users/:id/request-password-reset', async (req, res) => {
 app.put('/api/users/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { first_name, surname, email, phone_no, permissions_id, status } = req.body;
+    const { first_name, surname, email, phone_no, role, status } = req.body;
     const result = await db.query(
-      'UPDATE "user" SET first_name = $1, surname = $2, email = $3, phone_no = $4, permissions_id = $5, status = $6 WHERE user_id = $7 RETURNING user_id, first_name, surname, email, phone_no, permissions_id, status',
-      [first_name, surname, email, phone_no, permissions_id, status, id]
+      'UPDATE "user" SET first_name = $1, surname = $2, email = $3, phone_no = $4, role = $5, status = $6 WHERE user_id = $7 RETURNING user_id, first_name, surname, email, phone_no, role, status',
+      [first_name, surname, email, phone_no, role, status, id]
     );
     res.json(result.rows[0]);
   } catch (err) {
@@ -1011,8 +1098,8 @@ app.post('/api/reviews', async (req, res) => {
       // If rating is low (below 3), notify Treasurer/Admin
       if (currentAvg < 3.0) {
         const supplierName = supplierStats.rows[0].name;
-        // Find Treasurer (role 2 or 3) and Admins (role 1 or 5)
-        const adminsResult = await db.query('SELECT user_id FROM "user" WHERE permissions_id IN (1, 2, 3, 5)');
+        // Find Treasurer and Admins
+        const adminsResult = await db.query("SELECT user_id FROM \"user\" WHERE role IN ('admin', 'treasurer', 'branch_manager', 'community_manager')");
 
         for (const admin of adminsResult.rows) {
           await alertService.sendActionNotification(
@@ -1043,11 +1130,11 @@ app.get('/api/notifications/history', async (req, res) => {
 
     // Build query
     let query = `
-      SELECT * FROM notifications 
+      SELECT * FROM notification 
       WHERE user_id = $1
     `;
     let countQuery = `
-      SELECT COUNT(*) FROM notifications 
+      SELECT COUNT(*) FROM notification 
       WHERE user_id = $1
     `;
 
@@ -1104,7 +1191,7 @@ app.get('/api/notifications/history', async (req, res) => {
 app.get('/api/notifications/pending-requests-count', async (req, res) => {
   try {
     // Count supplier requests, client requests, AND pending sales (payment requests)
-    const supplierResult = await db.query("SELECT COUNT(*) FROM supplier_requests WHERE status = 'pending'");
+    const supplierResult = await db.query("SELECT COUNT(*) FROM supplier_request WHERE status = 'pending'");
     const clientResult = await db.query("SELECT COUNT(*) FROM client_request WHERE status = 'pending'");
     const salesResult = await db.query(`
         SELECT COUNT(*) 
@@ -1139,7 +1226,7 @@ app.get('/api/notifications', async (req, res) => {
   try {
     const userId = req.user.id; // User ID from token
     const result = await db.query(
-      `SELECT * FROM notifications 
+      `SELECT * FROM notification 
          WHERE user_id = $1 
          ORDER BY created_at DESC 
          LIMIT 50`,
@@ -1156,7 +1243,7 @@ app.get('/api/notifications/unread', async (req, res) => {
   try {
     const userId = req.user.id;
     const result = await db.query(
-      `SELECT * FROM notifications 
+      `SELECT * FROM notification 
          WHERE user_id = $1 AND is_read = FALSE 
          ORDER BY created_at DESC`,
       [userId]
@@ -1174,7 +1261,7 @@ app.put('/api/notifications/:id/read', async (req, res) => {
     const { id } = req.params;
     const userId = req.user.id;
     const result = await db.query(
-      `UPDATE notifications 
+      `UPDATE notification 
          SET is_read = TRUE 
          WHERE notification_id = $1 AND user_id = $2 
          RETURNING *`,
@@ -1195,7 +1282,7 @@ app.put('/api/notifications/mark-all-read', async (req, res) => {
   try {
     const userId = req.user.id;
     await db.query(
-      'UPDATE notifications SET is_read = TRUE WHERE user_id = $1 AND is_read = FALSE',
+      'UPDATE notification SET is_read = TRUE WHERE user_id = $1 AND is_read = FALSE',
       [userId]
     );
     res.json({ message: 'All notifications marked as read' });
@@ -1311,8 +1398,8 @@ app.put('/api/payments/masav', auth, async (req, res) => {
     const { date, amount } = req.body;
     const userId = req.user.id;
 
-    // Check permissions (Treasurer only)
-    if (req.user.role_id !== 1 && req.user.role_id !== 2) {
+    // Check permissions (Treasurer only or Admin)
+    if (req.user.role !== 'admin' && req.user.role !== 'treasurer') {
       return res.status(403).json({ message: 'Unauthorized' });
     }
 
@@ -1632,8 +1719,8 @@ app.put('/api/payments/:id/mark-paid', async (req, res) => {
 
 app.post('/api/payments/run-check', async (req, res) => {
   try {
-    // Check that user is treasurer (permissions_id = 2)
-    if (req.user.role_id !== 2) {
+    // Check that user is treasurer
+    if (req.user.role !== 'treasurer') {
       return res.status(403).json({ message: 'Unauthorized - Treasurer only' });
     }
 
@@ -1968,6 +2055,7 @@ app.post('/api/client-requests', auth, async (req, res) => {
     console.log('Incoming client request payload:', JSON.stringify(req.body, null, 2));
     const {
       branch_id,
+      client_id,
       client_name,
       poc_name,
       poc_phone,
@@ -1983,40 +2071,80 @@ app.post('/api/client-requests', auth, async (req, res) => {
 
     const requested_by_user_id = req.user.id;
 
-    // Validation - ONLY CLIENT DETAILS, NO TRANSACTION FIELDS
-    console.log('Validating fields:', { branch_id, client_name, poc_name, poc_phone });
-    if (!branch_id || !client_name || !poc_name || !poc_phone) {
+    let finalClientId = client_id;
+    let finalClientName = client_name;
+    let finalPocName = poc_name;
+    let finalPocPhone = poc_phone;
+    let finalPocEmail = poc_email;
+    let finalCity = city;
+    let finalStreet = street_name;
+    let finalHouseNo = house_no;
+    let finalZip = zip_code;
+
+    // If existing client, fetch details if missing
+    if (finalClientId) {
+      const clientResult = await db.query(`
+        SELECT c.*, a.city, a.street_name, a.house_no, a.zip_code 
+        FROM client c
+        LEFT JOIN address a ON c.address_id = a.address_id
+        WHERE c.client_id = $1
+      `, [finalClientId]);
+
+      if (clientResult.rows.length > 0) {
+        const c = clientResult.rows[0];
+        if (!finalClientName) finalClientName = c.name;
+        if (!finalPocName) finalPocName = c.poc_name;
+        if (!finalPocPhone) finalPocPhone = c.poc_phone; // Assuming poc_phone in db
+        if (!finalPocEmail) finalPocEmail = c.poc_email;
+        if (!finalCity) finalCity = c.city;
+        if (!finalStreet) finalStreet = c.street_name;
+        if (!finalHouseNo) finalHouseNo = c.house_no;
+        if (!finalZip) finalZip = c.zip_code;
+      }
+    }
+
+    // Validation
+    console.log('Validating fields:', { branch_id, client_id: finalClientId, client_name: finalClientName });
+    // If it's a new client (no ID), name and phone are required.
+    // If it's an existing client (has ID), we rely on the DB having name/phone, but checks are good.
+    if (!branch_id || !finalClientName) {
       console.log('Validation failed - missing required fields');
       return res.status(400).json({
-        message: 'שדות חובה: שם לקוח, שם איש קשר, טלפון'
+        message: 'שדות חובה: שם לקוח'
       });
     }
+
+    // For new clients, require POC phone
+    if (!finalClientId && !finalPocPhone) {
+      return res.status(400).json({ message: 'שדה חובה: טלפון איש קשר (ללקוח חדש)' });
+    }
+
     console.log('Validation passed - proceeding with insert');
 
-    // Insert client request - INCLUDING OPTIONAL QUOTE FIELDS
+    // Insert client request
     const result = await db.query(`
       INSERT INTO client_request (
-        branch_id, requested_by_user_id, client_name, 
+        branch_id, requested_by_user_id, client_id, client_name, 
         poc_name, poc_phone, poc_email, city, street_name, house_no, zip_code, 
         quote_value, payment_terms, quote_description,
         status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       RETURNING *
     `, [
-      branch_id, requested_by_user_id, client_name,
-      poc_name, poc_phone, poc_email || null, city || null, street_name || null,
-      house_no || null, zip_code || null,
+      branch_id, requested_by_user_id, finalClientId || null, finalClientName,
+      finalPocName || 'לא צוין', finalPocPhone || 'לא צוין', finalPocEmail || null, finalCity || null, finalStreet || null,
+      finalHouseNo || null, finalZip || null,
       quote_value || null, payment_terms || null, quote_description || null,
       'pending'
     ]);
 
     // Create in-app notification for accounting (permissions_id: 1=admin, 2=treasurer)
     await db.query(`
-      INSERT INTO notifications (user_id, message, type, created_at)
+      INSERT INTO notification (user_id, message, type, created_at)
       SELECT user_id, $1, 'info', NOW()
       FROM "user"
-      WHERE permissions_id IN (1, 2)
-    `, [`בקשה חדשה לרישום לקוח: ${client_name}`]);
+      WHERE role IN ('admin', 'treasurer')
+    `, [`בקשה חדשה לרישום לקוח: ${finalClientName}`]);
 
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -2088,7 +2216,7 @@ app.get('/api/client-requests/:id', auth, async (req, res) => {
       LEFT JOIN branch b ON cr.branch_id = b.branch_id
       LEFT JOIN "user" u1 ON cr.requested_by_user_id = u1.user_id
       LEFT JOIN "user" u2 ON cr.reviewed_by_user_id = u2.user_id
-      WHERE cr.request_id = $1
+      WHERE cr.client_req_id = $1
     `, [id]);
 
     if (result.rows.length === 0) {
@@ -2129,7 +2257,7 @@ app.put('/api/client-requests/:id/approve', auth, async (req, res) => {
     await client.query('BEGIN');
 
     const requestResult = await client.query(
-      'SELECT * FROM client_request WHERE request_id = $1',
+      'SELECT * FROM client_request WHERE client_req_id = $1',
       [id]
     );
 
@@ -2199,13 +2327,12 @@ app.put('/api/client-requests/:id/approve', auth, async (req, res) => {
       try {
         console.log(`Auto-creating sale for request ${id} (Amount: ${request.quote_value})`);
 
+        console.log(`Auto-creating sale for request ${id} (Amount: ${request.quote_value})`);
+
         const terms = request.payment_terms || 'immediate';
         const now = new Date();
-        let dueDate = new Date(now);
-
-        if (terms === 'plus_30') dueDate.setDate(now.getDate() + 30);
-        else if (terms === 'plus_60') dueDate.setDate(now.getDate() + 60);
-        else if (terms === 'plus_90') dueDate.setDate(now.getDate() + 90);
+        // Use unified calculation logic
+        const dueDate = paymentCalculations.calculateDueDate(now, terms);
 
         const trxResult = await client.query(`
           INSERT INTO transaction (value, due_date, status, description)
@@ -2227,7 +2354,7 @@ app.put('/api/client-requests/:id/approve', auth, async (req, res) => {
           request.branch_id,
           transactionId,
           terms,
-          `REQ-${request.request_id}`
+          `REQ-${request.client_req_id}`
         ]);
         approvedSaleId = saleResult.rows[0].sale_id;
         console.log(`Created Sale ID: ${approvedSaleId}`);
@@ -2247,12 +2374,12 @@ app.put('/api/client-requests/:id/approve', auth, async (req, res) => {
           client_id = $3,
           approved_client_id = $3,
           approved_sale_id = $4
-      WHERE request_id = $5
+      WHERE client_req_id = $5
     `, [reviewed_by_user_id, review_notes || null, newClient.client_id, approvedSaleId, id]);
 
     // 4. Notify branch manager
     await client.query(`
-      INSERT INTO notifications (user_id, message, type, created_at)
+      INSERT INTO notification (user_id, message, type, created_at)
       VALUES ($1, $2, 'success', NOW())
     `, [
       request.requested_by_user_id,
@@ -2286,7 +2413,7 @@ app.put('/api/client-requests/:id/reject', auth, async (req, res) => {
 
     // Get request details for notification
     const requestResult = await db.query(
-      'SELECT * FROM client_request WHERE request_id = $1',
+      'SELECT * FROM client_request WHERE client_req_id = $1',
       [id]
     );
 
@@ -2307,12 +2434,12 @@ app.put('/api/client-requests/:id/reject', auth, async (req, res) => {
           reviewed_by_user_id = $1, 
           review_notes = $2, 
           reviewed_at = NOW()
-      WHERE request_id = $3
+      WHERE client_req_id = $3
     `, [reviewed_by_user_id, review_notes || null, id]);
 
     // Notify the branch manager
     await db.query(`
-      INSERT INTO notifications (user_id, message, type, created_at)
+      INSERT INTO notification (user_id, message, type, created_at)
       VALUES ($1, $2, 'error', NOW())
     `, [
       request.requested_by_user_id,
@@ -2335,8 +2462,14 @@ app.post('/api/sales', async (req, res) => {
   try {
     const { client_id, branch_id, value, due_date, description, payment_terms } = req.body;
 
+    // Calculate due date based on payment terms if provided
+    let finalDueDate = due_date;
+    if (payment_terms) {
+      finalDueDate = paymentCalculations.calculateDueDate(new Date(), payment_terms);
+    }
+
     // Validation
-    if (!client_id || !branch_id || !value || !due_date) {
+    if (!client_id || !branch_id || !value || !finalDueDate) {
       return res.status(400).json({ message: 'כל השדות חובה: לקוח, ענף, סכום, תאריך יעד' });
     }
 
@@ -2348,7 +2481,7 @@ app.post('/api/sales', async (req, res) => {
       const transactionResult = await db.query(
         `INSERT INTO transaction (value, due_date, status, description) 
          VALUES ($1, $2, 'open', $3) RETURNING transaction_id`,
-        [value, due_date, description || null]
+        [value, finalDueDate, description || null]
       );
 
       const transactionId = transactionResult.rows[0].transaction_id;
@@ -2365,8 +2498,10 @@ app.post('/api/sales', async (req, res) => {
       // Send notification to accounting
       const notificationMessage = `דרישת תשלום חדשה נוצרה - סכום: ₪${value}`;
       await db.query(
-        `INSERT INTO notifications (user_id, title, message, type, is_read) 
-         VALUES (1, 'דרישת תשלום חדשה', $1, 'info', FALSE)`,
+        `INSERT INTO notification (user_id, message, type, is_read, created_at) 
+         SELECT user_id, $1, 'info', FALSE, NOW()
+         FROM "user"
+         WHERE role IN ('admin', 'treasurer')`,
         [notificationMessage]
       );
 
@@ -2375,11 +2510,12 @@ app.post('/api/sales', async (req, res) => {
         transaction_id: transactionId
       });
     } catch (error) {
+      require('fs').writeFileSync('sales_error_inner.log', JSON.stringify(error, Object.getOwnPropertyNames(error)));
       await db.query('ROLLBACK');
       throw error;
     }
   } catch (err) {
-    console.error(err.message);
+    require('fs').writeFileSync('sales_error_outer.log', JSON.stringify(err, Object.getOwnPropertyNames(err)));
     res.status(500).send('Server Error');
   }
 });
@@ -2622,10 +2758,10 @@ app.post('/api/sales/request', auth, async (req, res) => {
 
       // Notify accounting/treasurer
       await db.query(`
-        INSERT INTO notifications (user_id, message, type, created_at)
+        INSERT INTO notification (user_id, message, type, created_at)
         SELECT user_id, $1, 'info', NOW()
         FROM "user"
-        WHERE permissions_id IN (1, 2)
+        WHERE role IN ('admin', 'treasurer')
       `, [`דרישת תשלום חדשה ממתינה לאישור - סכום: ₪${value}`]);
 
       res.status(201).json({
@@ -2687,7 +2823,7 @@ app.put('/api/sales/:id/reject', auth, async (req, res) => {
 
       if (branchResult.rows.length > 0 && branchResult.rows[0].manager_id) {
         await db.query(`
-          INSERT INTO notifications (user_id, message, type, created_at)
+          INSERT INTO notification (user_id, message, type, created_at)
           VALUES ($1, $2, 'error', NOW())
         `, [
           branchResult.rows[0].manager_id,
@@ -2777,7 +2913,7 @@ app.put('/api/sales/:id/approve', auth, async (req, res) => {
 
       if (branchResult.rows.length > 0 && branchResult.rows[0].manager_id) {
         await db.query(`
-          INSERT INTO notifications (user_id, message, type, created_at)
+          INSERT INTO notification (user_id, message, type, created_at)
           VALUES ($1, $2, 'success', NOW())
         `, [
           branchResult.rows[0].manager_id,
@@ -2891,20 +3027,26 @@ app.post('/api/payment-requests', auth, async (req, res) => {
         throw new Error(`Supplier ${supplier_id} not found`);
       }
 
+      // Generate payment request number (Timestamp + Random) - DB expects Integer
+      // Note: Max integer in PG is 2.1B. Date.now() is 1.7T. We need to be careful.
+      // Let's use a smaller random number or substring if it's a standard INT. 
+      // If it's BIGINT we are fine. Assuming standard serial usage elsewhere, let's try a random 9 digit int.
+      const paymentReqNo = Math.floor(100000000 + Math.random() * 900000000);
+
       const payReqResult = await db.query(
-        `INSERT INTO payment_req (transaction_id, supplier_id, branch_id) 
-         VALUES ($1, $2, $3) RETURNING *`,
-        [transactionId, supplier_id, branch_id]
+        `INSERT INTO payment_req (transaction_id, supplier_id, branch_id, payment_req_no) 
+          VALUES ($1, $2, $3, $4) RETURNING *`,
+        [transactionId, supplier_id, branch_id, paymentReqNo]
       );
 
       await db.query('COMMIT');
 
-      // Notify Treasurer
+      // Notify Treasurer (Role based)
       await db.query(`
-        INSERT INTO notifications (user_id, message, type, created_at)
+        INSERT INTO notification (user_id, message, type, created_at)
         SELECT user_id, $1, 'info', NOW()
         FROM "user"
-        WHERE permissions_id IN (1, 2)
+        WHERE role IN ('admin', 'treasurer')
       `, [`דרישת תשלום חדשה מספק ממתינה לאישור - סכום: ₪${Math.abs(dbValue)}`]);
 
       res.status(201).json({
@@ -2916,8 +3058,10 @@ app.post('/api/payment-requests', auth, async (req, res) => {
       throw error;
     }
   } catch (err) {
-    console.error('Error creating payment request:', err.message);
-    res.status(500).send('Server Error: ' + err.message);
+    if (!res.headersSent) {
+      console.error('Error creating payment request:', err.message);
+      res.status(500).send('Server Error: ' + err.message);
+    }
   }
 });
 
@@ -2946,9 +3090,9 @@ app.put('/api/payment-requests/:id/approve', auth, async (req, res) => {
       const branchQuery = await db.query('SELECT manager_id FROM branch WHERE branch_id = $1', [payReq.branch_id]);
       if (branchQuery.rows.length > 0 && branchQuery.rows[0].manager_id) {
         await db.query(`
-          INSERT INTO notifications (user_id, message, type, created_at)
-          VALUES ($1, $2, 'success', NOW())
-        `, [
+          INSERT INTO notification(user_id, message, type, created_at)
+          VALUES($1, $2, 'success', NOW())
+          `, [
           branchQuery.rows[0].manager_id,
           'דרישת תשלום מספק אושרה על ידי הנהלת חשבונות'
         ]);
@@ -2989,11 +3133,11 @@ app.put('/api/payment-requests/:id/reject', auth, async (req, res) => {
       const branchQuery = await db.query('SELECT manager_id FROM branch WHERE branch_id = $1', [payReq.branch_id]);
       if (branchQuery.rows.length > 0 && branchQuery.rows[0].manager_id) {
         await db.query(`
-          INSERT INTO notifications (user_id, message, type, created_at)
-          VALUES ($1, $2, 'error', NOW())
-        `, [
+          INSERT INTO notification(user_id, message, type, created_at)
+          VALUES($1, $2, 'error', NOW())
+          `, [
           branchQuery.rows[0].manager_id,
-          `דרישת תשלום מספק נדחתה. סיבה: ${rejection_reason}`
+          `דרישת תשלום מספק נדחתה.סיבה: ${rejection_reason}`
         ]);
       }
 

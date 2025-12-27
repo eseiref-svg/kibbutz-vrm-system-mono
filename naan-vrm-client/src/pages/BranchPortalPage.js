@@ -34,6 +34,7 @@ function BranchPortalPage() {
         })
         .catch(error => {
           console.error("Could not find a branch for this manager:", error);
+          setLoading(false); // Warning: Ensure we stop loading state
         });
     }
   }, [user]);

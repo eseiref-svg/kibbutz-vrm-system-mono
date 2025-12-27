@@ -9,12 +9,11 @@ function SupplierRequestsWidget({ requests, onUpdateRequest, onApproveRequest })
   const [selectedRequest, setSelectedRequest] = useState(null);
 
   const handleReject = async (requestId) => {
-    if (!window.confirm('האם אתה בטוח שברצונך לדחות את הבקשה?')) {
-      return;
-    }
+    const reason = window.prompt('אנא הזן את סיבת הדחייה:');
+    if (reason === null) return; // Cancelled
 
     try {
-      await api.put(`/supplier-requests/${requestId}`, { status: 'rejected' });
+      await api.put(`/supplier-requests/${requestId}`, { status: 'rejected', rejection_reason: reason });
       onUpdateRequest(requestId);
       triggerRefresh(); // Refresh notification bell immediately
       alert('✅ הבקשה נדחתה בהצלחה.');
@@ -69,7 +68,7 @@ function SupplierRequestsWidget({ requests, onUpdateRequest, onApproveRequest })
           <tbody>
             {requests.map(req => (
               <tr
-                key={req.request_id}
+                key={req.supplier_req_id}
                 className="border-b hover:bg-gray-50 cursor-pointer transition-colors"
                 onClick={() => handleRowClick(req)}
               >
@@ -89,7 +88,7 @@ function SupplierRequestsWidget({ requests, onUpdateRequest, onApproveRequest })
                     <Button
                       size="sm"
                       variant="danger"
-                      onClick={() => handleReject(req.request_id)}
+                      onClick={() => handleReject(req.supplier_req_id)}
                     >
                       דחה
                     </Button>

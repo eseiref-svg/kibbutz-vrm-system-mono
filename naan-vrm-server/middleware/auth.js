@@ -13,9 +13,11 @@ function auth(req, res, next) {
   // Verify token
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    console.log('Auth Debug: Decoded User:', decoded.user);
     req.user = decoded.user;
     next();
   } catch (err) {
+    console.error('Auth Error:', err.message);
     res.status(401).json({ msg: 'Token is not valid' });
   }
 }

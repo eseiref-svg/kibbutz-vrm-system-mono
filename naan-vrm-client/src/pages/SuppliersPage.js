@@ -3,7 +3,7 @@ import api from '../api/axiosConfig';
 import SuppliersTable from '../components/SuppliersTable';
 import SupplierSearch from '../components/suppliers/SupplierSearch';
 import SupplierDetailsCard from '../components/suppliers/SupplierDetailsCard';
-import AddSupplierForm from '../components/AddSupplierForm';
+import UnifiedSupplierForm from '../components/shared/UnifiedSupplierForm';
 import Button from '../components/shared/Button';
 import Modal from '../components/shared/Modal';
 import Input from '../components/shared/Input';
@@ -131,7 +131,22 @@ function SuppliersPage() {
         )}
       </div>
 
-      {showAddForm && <AddSupplierForm onSupplierAdded={handleSupplierAdded} supplierFields={supplierFields} />}
+      {showAddForm && (
+        <UnifiedSupplierForm
+          open={showAddForm}
+          onClose={() => setShowAddForm(false)}
+          onSubmit={async (data) => {
+            try {
+              await api.post('/suppliers', data);
+              handleSupplierAdded();
+            } catch (e) {
+              alert('שגיאה בהוספת הספק: ' + (e.response?.data?.message || e.message));
+            }
+          }}
+          mode="treasurer"
+          submitLabel="שמור ספק"
+        />
+      )}
 
       {selectedSupplier ? (
         <SupplierDetailsCard

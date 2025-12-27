@@ -9,7 +9,7 @@ import SupplierRequestsWidget from '../components/dashboard/SupplierRequestsWidg
 import ClientRequestsWidget from '../components/dashboard/ClientRequestsWidget';
 import SalesApprovalWidget from '../components/dashboard/SalesApprovalWidget';
 import LowRatedSuppliersWidget from '../components/dashboard/LowRatedSuppliersWidget';
-import AddSupplierForm from '../components/AddSupplierForm';
+import UnifiedSupplierForm from '../components/shared/UnifiedSupplierForm';
 import ApproveClientModal from '../components/dashboard/ApproveClientModal';
 import Button from '../components/shared/Button';
 import Select from '../components/shared/Select';
@@ -20,7 +20,7 @@ import 'jspdf-autotable';
 
 function DashboardPage() {
   const { user } = useAuth();
-  const isCommunityManager = user?.role_id === 5;
+  const isCommunityManager = user?.role === 'community_manager';
   const { triggerRefresh } = useNotifications();
   const [summaryData, setSummaryData] = useState(null);
   const [requests, setRequests] = useState([]);
@@ -61,11 +61,11 @@ function DashboardPage() {
   }, [fetchData]);
 
   const handleRequestUpdate = (requestId) => {
-    setRequests(prevRequests => prevRequests.filter(req => req.request_id !== requestId));
+    setRequests(prevRequests => prevRequests.filter(req => req.supplier_req_id !== requestId));
   };
 
   const handleClientRequestUpdate = (requestId) => {
-    setClientRequests(prevRequests => prevRequests.filter(req => req.request_id !== requestId));
+    setClientRequests(prevRequests => prevRequests.filter(req => req.client_req_id !== requestId));
   };
 
   const handleApproveClientRequest = (request) => {
@@ -98,12 +98,12 @@ function DashboardPage() {
     setShowAddSupplierForm(true);
   };
 
-  const handleSupplierAdded = async (supplier) => {
+  const handleSupplierAdded = async (supplierId) => {
     // Update request status to approved
     try {
-      await api.put(`/supplier-requests/${selectedRequest.request_id}`, { status: 'approved' });
+      await api.put(`/supplier-requests/${selectedRequest.supplier_req_id}`, { status: 'approved', requested_supplier_id: supplierId });
       // Remove request from list
-      setRequests(prevRequests => prevRequests.filter(req => req.request_id !== selectedRequest.request_id));
+      setRequests(prevRequests => prevRequests.filter(req => req.supplier_req_id !== selectedRequest.supplier_req_id));
       triggerRefresh(); // Refresh notification bell immediately
       setShowAddSupplierForm(false);
       setSelectedRequest(null);
@@ -211,12 +211,21 @@ function DashboardPage() {
 
           <SalesApprovalWidget />
 
-          <AddSupplierForm
+          <UnifiedSupplierForm
             open={showAddSupplierForm}
             onClose={handleCloseAddSupplierForm}
-            onSupplierAdded={handleSupplierAdded}
-            supplierFields={supplierFields}
+            onSubmit={async (data) => {
+              try {
+                const res = await api.post('/suppliers', data);
+                await handleSupplierAdded(res.data.supplier_id); // Logic to refresh and close
+              } catch (e) {
+                alert('שגיאה בהוספת הספק: ' + (e.response?.data?.message || e.message));
+              }
+            }}
             initialData={selectedRequest}
+            mode="treasurer"
+            title={selectedRequest ? 'אישור ספק (מרכז בקשות)' : 'הוספת ספק חדש'}
+            submitLabel="אשר וצור ספק"
           />
 
           <ApproveClientModal

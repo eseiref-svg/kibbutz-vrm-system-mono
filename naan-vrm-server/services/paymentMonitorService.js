@@ -101,13 +101,12 @@ class PaymentMonitorService {
           s.poc_email as supplier_email,
           b.name as branch_name,
           b.manager_id as branch_manager_id,
-          pt.eom as payment_terms_eom,
+          s.payment_terms,
           'payment' as transaction_type
         FROM transaction t
         LEFT JOIN payment_req pr ON t.transaction_id = pr.transaction_id
         LEFT JOIN supplier s ON pr.supplier_id = s.supplier_id AND s.status IN ('pending', 'approved')
         LEFT JOIN branch b ON pr.branch_id = b.branch_id
-        LEFT JOIN payment_terms pt ON s.payment_terms_id = pt.payment_terms_id
         WHERE t.status = 'open' AND pr.payment_req_id IS NOT NULL
         
         UNION ALL

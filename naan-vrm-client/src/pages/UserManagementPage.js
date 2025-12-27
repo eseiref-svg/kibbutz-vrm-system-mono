@@ -19,10 +19,16 @@ function UserManagementPage() {
   const [currentUser, setCurrentUser] = useState(null);
   const [validationErrors, setValidationErrors] = useState({});
 
-  const permissionMap = { 1: 'Admin', 2: 'גזבר', 3: 'הנהלת חשבונות', 4: 'מנהל ענף', 5: 'Derictrion' };
-
+  const roleMap = {
+    'admin': 'Admin',
+    'treasurer': 'גזבר',
+    'bookkeeper': 'הנהלת חשבונות',
+    'branch_manager': 'מנהל ענף',
+    'community_manager': 'מנהל קהילה'
+  };
   const fetchUsers = () => {
     setLoading(true);
+    // Ensure we fetch users logic here handled role string from backend
     api.get('/users')
       .then(response => {
         setUsers(response.data);
@@ -70,7 +76,7 @@ function UserManagementPage() {
       setCurrentUser(user);
     } else {
       setIsEditing(false);
-      setCurrentUser({ first_name: '', surname: '', email: '', phone_no: '', password: '', permissions_id: 4, status: 'active' });
+      setCurrentUser({ first_name: '', surname: '', email: '', phone_no: '', password: '', role: 'branch_manager', status: 'active' });
     }
     setValidationErrors({});
     setIsModalOpen(true);
@@ -85,10 +91,7 @@ function UserManagementPage() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    // Handle number inputs specifically if needed, but for select it's usually string
-    // We will convert permissions_id to int when saving or here if we want strict typing
-    const newValue = name === 'permissions_id' ? parseInt(value, 10) : value;
-    setCurrentUser({ ...currentUser, [name]: newValue });
+    setCurrentUser({ ...currentUser, [name]: value });
   };
 
   const validateForm = () => {
@@ -248,7 +251,7 @@ function UserManagementPage() {
                   <tr key={user.user_id} className="border-b">
                     <td className="py-2 px-3">{user.first_name} {user.surname}</td>
                     <td className="py-2 px-3">{user.email}</td>
-                    <td className="py-2 px-3">{permissionMap[user.permissions_id] || user.permissions_id}</td>
+                    <td className="py-2 px-3">{roleMap[user.role] || user.role}</td>
                     <td className="py-2 px-3">{user.status === 'active' ? 'פעיל' : 'לא פעיל'}</td>
                     <td className="py-2 px-3">
                       <div className="flex gap-2">
@@ -330,12 +333,12 @@ function UserManagementPage() {
               />
             )}
             <Select
-              name="permissions_id"
+              name="role"
               label="תפקיד"
-              value={currentUser.permissions_id || 4}
+              value={currentUser.role || 'branch_manager'}
               onChange={handleChange}
-              options={Object.entries(permissionMap).map(([id, name]) => ({
-                value: parseInt(id, 10),
+              options={Object.entries(roleMap).map(([id, name]) => ({
+                value: id,
                 label: name
               }))}
             />

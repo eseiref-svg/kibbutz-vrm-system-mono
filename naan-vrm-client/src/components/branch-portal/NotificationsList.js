@@ -98,8 +98,8 @@ function NotificationsList() {
             <div
               key={notification.notification_id}
               className={`p-4 rounded-lg border-r-4 transition-colors ${notification.is_read
-                  ? 'bg-gray-50 border-gray-300'
-                  : 'bg-blue-50 border-blue-500'
+                ? 'bg-gray-50 border-gray-300'
+                : 'bg-blue-50 border-blue-500'
                 }`}
             >
               <div className="flex items-start justify-between">
@@ -108,10 +108,16 @@ function NotificationsList() {
                     <span className="text-2xl">
                       {getNotificationIcon(notification.type)}
                     </span>
-                    <span className={`font-semibold ${notification.is_read ? 'text-gray-700' : 'text-blue-900'
-                      }`}>
-                      {notification.message}
-                    </span>
+                    <div className="flex flex-col">
+                      <span className={`font-semibold ${notification.is_read ? 'text-gray-700' : 'text-blue-900'}`}>
+                        {notification.message.split('. סיבה:')[0]}
+                      </span>
+                      {notification.message.includes('. סיבה:') && (
+                        <span className="text-sm text-gray-600 mt-1">
+                          סיבה:{notification.message.split('. סיבה:')[1]}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <p className="text-sm text-gray-500">
                     {new Date(notification.created_at).toLocaleString('he-IL', {

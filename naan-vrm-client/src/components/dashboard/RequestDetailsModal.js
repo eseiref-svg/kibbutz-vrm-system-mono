@@ -43,7 +43,7 @@ function RequestDetailsModal({ isOpen, onClose, data, type, onApprove, onReject 
                 <>
                     <Button variant="outline" onClick={onClose}>סגור</Button>
                     <div className="flex gap-2 mr-auto">
-                        <Button variant="danger" onClick={() => onReject(data.request_id)}>דחה בקשה</Button>
+                        <Button variant="danger" onClick={() => onReject(isSupplier ? data.supplier_req_id : data.client_req_id)}>דחה בקשה</Button>
                         <Button variant="success" onClick={() => onApprove(data)}>אשר בקשה</Button>
                     </div>
                 </>
