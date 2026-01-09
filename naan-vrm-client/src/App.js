@@ -33,41 +33,100 @@ function ProtectedRoute({ children }) {
 function Header() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [isMenuOpen, setIsMenuOpen] = React.useState(false);
   const isTreasurer = ['admin', 'treasurer', 'community_manager', 'bookkeeper'].includes(user?.role);
 
   const handleLogout = () => {
     logout();
     navigate('/login');
+    setIsMenuOpen(false);
   };
 
+  const toggleMenu = () => {
+    setIsMenuOpen(!isMenuOpen);
+  };
+
+  const closeMenu = () => {
+    setIsMenuOpen(false);
+  };
+
+  const LinkItem = ({ to, children }) => (
+    <Link
+      to={to}
+      className="text-blue-800 hover:text-blue-600 font-medium py-2 px-1 block md:inline-block"
+      onClick={closeMenu}
+    >
+      {children}
+    </Link>
+  );
+
   return (
-    <header className="bg-blue-100 p-4 shadow-md sticky top-0 z-50">
-      <div className="container mx-auto flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-blue-800">מערכת מידע פיננסית - קיבוץ נען</h1>
-        <div className="flex items-center">
-          {user && (
-            <>
-              {isTreasurer ? (
-                <nav className="ml-6 flex items-center gap-6">
-                  <Link to="/" className="text-blue-800 hover:text-blue-600">לוח מחוונים</Link>
-                  <Link to="/payments" className="text-blue-800 hover:text-blue-600">מעקב תשלומים</Link>
-                  <Link to="/suppliers" className="text-blue-800 hover:text-blue-600">ניהול ספקים</Link>
-                  <Link to="/clients" className="text-blue-800 hover:text-blue-600">ניהול לקוחות</Link>
-                  <Link to="/reports" className="text-blue-800 hover:text-blue-600">דוחות</Link>
-                  <Link to="/tag-management" className="text-blue-800 hover:text-blue-600">ניהול תגים</Link>
-                  <Link to="/user-management" className="text-blue-800 hover:text-blue-600">ניהול משתמשים</Link>
-                  <Link to="/notifications-history" className="text-blue-800 hover:text-blue-600">היסטוריית התראות</Link>
-                  <NotificationsBell />
-                </nav>
-              ) : (
-                <span className="text-lg text-blue-800 font-semibold ml-6">פורטל מנהל ענף</span>
-              )}
-              <button onClick={handleLogout} className="bg-red-500 text-white hover:bg-red-600 font-bold py-2 px-4 rounded-md mr-6">
-                התנתק
+    <header className="bg-blue-100 shadow-md sticky top-0 z-50">
+      <div className="container mx-auto px-4 py-3">
+        <div className="flex justify-between items-center bg-blue-100 relative z-50">
+          <div className="flex items-center">
+            {/* Hamburger Menu Button - Always visible for Treasurer */}
+            {user && isTreasurer && (
+              <button
+                className="p-2 text-blue-800 focus:outline-none ml-2"
+                onClick={toggleMenu}
+                aria-label="Toggle menu"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  {isMenuOpen ? (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  ) : (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                  )}
+                </svg>
               </button>
-            </>
-          )}
+            )}
+            <h1 className="text-xl md:text-2xl font-bold text-blue-800 truncate">
+              {window.innerWidth < 400 ? 'מערכת כספים - נען' : 'מערכת מידע פיננסית - קיבוץ נען'}
+            </h1>
+          </div>
+
+          <div className="flex items-center">
+            {user && (
+              <>
+                {/* Desktop Navigation REMOVED for Treasurer - Hamburger only */}
+                {!isTreasurer && (
+                  <span className="text-lg text-blue-800 font-semibold ml-6 hidden md:inline">פורטל מנהל ענף</span>
+                )}
+
+                {/* Notification Bell - Visible always for treasurer */}
+                {isTreasurer && (
+                  <div className="ml-2">
+                    <NotificationsBell />
+                  </div>
+                )}
+
+                <button onClick={handleLogout} className="bg-red-500 text-white hover:bg-red-600 font-bold py-1.5 px-3 md:py-2 md:px-4 text-sm md:text-base rounded-md">
+                  התנתק
+                </button>
+              </>
+            )}
+          </div>
         </div>
+
+        {/* Navigation Dropdown - Always visible when toggled */}
+        {user && isTreasurer && (
+          <div
+            className={`absolute top-full left-0 right-0 bg-blue-50 shadow-lg border-t border-blue-200 transition-all duration-300 ease-in-out overflow-hidden z-20 ${isMenuOpen ? 'max-h-screen opacity-100' : 'max-h-0 opacity-0'
+              }`}
+          >
+            <nav className="flex flex-col p-4 space-y-3">
+              <LinkItem to="/">לוח מחוונים</LinkItem>
+              <LinkItem to="/payments">מעקב תשלומים</LinkItem>
+              <LinkItem to="/suppliers">ניהול ספקים</LinkItem>
+              <LinkItem to="/clients">ניהול לקוחות</LinkItem>
+              <LinkItem to="/reports">דוחות</LinkItem>
+              <LinkItem to="/tag-management">ניהול תגים</LinkItem>
+              <LinkItem to="/user-management">ניהול משתמשים</LinkItem>
+              <LinkItem to="/notifications-history">היסטוריית התראות</LinkItem>
+            </nav>
+          </div>
+        )}
       </div>
     </header>
   );

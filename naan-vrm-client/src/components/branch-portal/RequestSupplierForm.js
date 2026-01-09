@@ -146,7 +146,7 @@ function RequestSupplierForm({ open, onClose, onSuccess, userId, branchId }) {
           helperText="עד 9 ספרות"
         />
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Input
             name="city"
             label="עיר"
@@ -164,7 +164,7 @@ function RequestSupplierForm({ open, onClose, onSuccess, userId, branchId }) {
             error={validationErrors.street_name}
           />
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Input
             name="house_no"
             label="מספר בית"

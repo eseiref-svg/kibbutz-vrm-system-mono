@@ -16,7 +16,7 @@ import Select from '../components/shared/Select';
 import { useNotifications } from '../context/NotificationContext';
 import { useAuth } from '../context/AuthContext';
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 
 function DashboardPage() {
   const { user } = useAuth();
@@ -130,7 +130,7 @@ function DashboardPage() {
     doc.text(`חשבוניות בחריגה: ${summaryData.overdueInvoices}`, 20, 40);
     doc.text(`בקשות ספקים ממתינות: ${requests.length}`, 20, 50);
 
-    doc.autoTable({
+    autoTable(doc, {
       startY: 60,
       head: [['ענף', 'סך הוצאות (ש"ח)']],
       body: summaryData.expensesByBranch.map(e => [e.name, parseFloat(e.total_expenses).toLocaleString('he-IL')]),
@@ -143,11 +143,14 @@ function DashboardPage() {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6 pb-4 border-b-2 border-gray-200">
-        <h2 className="text-3xl font-bold text-gray-800">
-          {isCommunityManager ? 'לוח מחוונים - מנהל קהילה' : 'לוח מחוונים - גזבר/ית'}
-        </h2>
+      <div className="flex flex-col md:flex-row justify-between items-center mb-6 pb-4 border-b-2 border-gray-200 gap-4">
         <div className="flex items-center gap-4">
+          <img src="/favicon.png" alt="לוגו המערכת" className="h-12 w-auto object-contain hover:opacity-90 transition-opacity" />
+          <h2 className="text-2xl md:text-3xl font-bold text-gray-800 text-center md:text-right">
+            {isCommunityManager ? 'לוח מחוונים - מנהל קהילה' : 'לוח מחוונים - גזבר/ית'}
+          </h2>
+        </div>
+        <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
           <Select
             value={period}
             onChange={(e) => setPeriod(e.target.value)}
@@ -157,9 +160,9 @@ function DashboardPage() {
               { value: 'annual', label: 'תצוגה שנתית' }
             ]}
             fullWidth={false}
-            className="min-w-[180px]"
+            className="w-full sm:min-w-[180px]"
           />
-          <Button variant="success" onClick={handleExportPDF}>
+          <Button variant="success" onClick={handleExportPDF} className="w-full sm:w-auto">
             ייצוא ל-PDF
           </Button>
         </div>

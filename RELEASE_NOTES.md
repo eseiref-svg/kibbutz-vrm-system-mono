@@ -208,18 +208,7 @@ cd ../naan-vrm-client && npm install
 - חיזוי תזרים מזומנים
 - API לדוחות חיצוניים
 
-### Known Issues
-- אין בעיות ידועות
-
 ---
 
-## Support
-
-**Questions?** צור issue ב-GitHub  
-**Bugs?** צור issue עם תיוג `bug`  
-**Features?** צור issue עם תיוג `enhancement`
-
----
-
-**Last Updated:** 26/12/2025  
+**Last Updated:** 01/01/2026  
 **Maintained by:** VRM Development Team

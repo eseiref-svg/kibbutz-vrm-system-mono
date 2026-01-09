@@ -24,6 +24,7 @@ const cacheRtl = createCache({
 });
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
+document.title = 'Naan VRM';
 root.render(
   <React.StrictMode>
     <BrowserRouter>

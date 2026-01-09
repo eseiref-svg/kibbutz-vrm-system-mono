@@ -16,7 +16,7 @@ function ReportsPage() {
   const [error, setError] = useState('');
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const chartRef = useRef(null);
-  
+
   // Payment reports state
   const [activeReport, setActiveReport] = useState('overdue-by-branch');
   const [paymentReportData, setPaymentReportData] = useState([]);
@@ -29,16 +29,16 @@ function ReportsPage() {
       api.get(`/reports/annual-cash-flow`, {
         params: { year: selectedYear }
       })
-      .then(response => {
-        setReportData(response.data);
-      })
-      .catch(err => {
-        console.error("Error fetching report data:", err);
-        setError('שגיאה בטעינת נתוני הדוח.');
-      })
-      .finally(() => {
-        setLoading(false);
-      });
+        .then(response => {
+          setReportData(response.data);
+        })
+        .catch(err => {
+          console.error("Error fetching report data:", err);
+          setError('שגיאה בטעינת נתוני הדוח.');
+        })
+        .finally(() => {
+          setLoading(false);
+        });
     };
 
     fetchReportData();
@@ -47,10 +47,10 @@ function ReportsPage() {
   const fetchPaymentReportData = useCallback(async () => {
     setPaymentLoading(true);
     try {
-      const endpoint = activeReport === 'overdue-by-branch' 
+      const endpoint = activeReport === 'overdue-by-branch'
         ? '/payments/reports/overdue-by-branch'
         : '/payments/reports/supplier-patterns';
-      
+
       const response = await api.get(endpoint);
       setPaymentReportData(response.data);
     } catch (error) {
@@ -67,7 +67,7 @@ function ReportsPage() {
   const exportPaymentToCSV = () => {
     if (!paymentReportData || paymentReportData.length === 0) return;
 
-    const headers = activeReport === 'overdue-by-branch' 
+    const headers = activeReport === 'overdue-by-branch'
       ? ['ענף', 'סכום באיחור', 'מספר חשבוניות']
       : ['ספק', 'סכום ממוצע', 'זמן תשלום ממוצע', 'אחוז איחורים'];
 
@@ -88,41 +88,41 @@ function ReportsPage() {
     link.download = `payment_report_${activeReport}_${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
   };
-  
+
   const handleExportPDF = async () => {
     if (!chartRef.current || !chartRef.current.canvas) return;
 
     try {
-        const doc = new jsPDF();
-        
-        doc.addFileToVFS('Arial.ttf', ARIAL_FONT_B64);
-        doc.addFont('Arial.ttf', 'Arial', 'normal');
-        doc.setFont('Arial');
-        
-        doc.setR2L(true);
-        doc.text(`דוח תזרים מזומנים לשנת ${selectedYear}`, 105, 15, { align: 'center' });
-        
-        const chartCanvas = chartRef.current.canvas;
-        const imgData = chartCanvas.toDataURL('image/png', 1.0);
-        doc.addImage(imgData, 'PNG', 15, 25, 180, 100);
+      const doc = new jsPDF();
 
-        autoTable(doc, {
-            startY: 135,
-            head: [['הוצאות (ש"ח)', 'הכנסות (ש"ח)', 'חודש']],
-            body: reportData.map(row => [
-                Math.abs(parseFloat(row.expense)).toLocaleString('he-IL'),
-                parseFloat(row.income).toLocaleString('he-IL'),
-                new Date(row.month + '-01').toLocaleDateString('he-IL', { month: 'long' }), 
-            ]).reverse(),
-            styles: { font: "Arial", halign: 'right' },
-            headStyles: { fillColor: [41, 128, 185], halign: 'center' },
-            bodyStyles: { halign: 'center' },
-        });
+      doc.addFileToVFS('Arial.ttf', ARIAL_FONT_B64);
+      doc.addFont('Arial.ttf', 'Arial', 'normal');
+      doc.setFont('Arial');
 
-        doc.save(`cash_flow_report_${selectedYear}.pdf`);
+      doc.setR2L(true);
+      doc.text(`דוח תזרים מזומנים לשנת ${selectedYear}`, 105, 15, { align: 'center' });
+
+      const chartCanvas = chartRef.current.canvas;
+      const imgData = chartCanvas.toDataURL('image/png', 1.0);
+      doc.addImage(imgData, 'PNG', 15, 25, 180, 100);
+
+      autoTable(doc, {
+        startY: 135,
+        head: [['הוצאות (ש"ח)', 'הכנסות (ש"ח)', 'חודש']],
+        body: reportData.map(row => [
+          Math.abs(parseFloat(row.expense)).toLocaleString('he-IL'),
+          parseFloat(row.income).toLocaleString('he-IL'),
+          new Date(row.month + '-01').toLocaleDateString('he-IL', { month: 'long' }),
+        ]).reverse(),
+        styles: { font: "Arial", halign: 'right' },
+        headStyles: { fillColor: [41, 128, 185], halign: 'center' },
+        bodyStyles: { halign: 'center' },
+      });
+
+      doc.save(`cash_flow_report_${selectedYear}.pdf`);
     } catch (e) {
-        console.error("Failed to generate PDF", e);
-        alert("נכשל ביצירת קובץ ה-PDF.");
+      console.error("Failed to generate PDF", e);
+      alert("נכשל ביצירת קובץ ה-PDF.");
     }
   };
 
@@ -264,16 +264,16 @@ function ReportsPage() {
     <div>
       {/* Cash Flow Report Section */}
       <div className="mb-8">
-        <div className="flex flex-wrap justify-between items-center mb-6 pb-4 border-b-2 border-gray-200 gap-4">
-          <h2 className="text-3xl font-bold text-gray-800">
+        <div className="flex flex-col md:flex-row justify-between items-center mb-6 pb-4 border-b-2 border-gray-200 gap-4">
+          <h2 className="text-2xl md:text-3xl font-bold text-gray-800">
             דוח תזרים מזומנים שנתי
           </h2>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <label htmlFor="year-select" className="font-semibold">בחר שנה:</label>
+          <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
+            <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-start">
+              <label htmlFor="year-select" className="font-semibold whitespace-nowrap">בחר שנה:</label>
               <Select
-                id="year-select" 
-                value={selectedYear} 
+                id="year-select"
+                value={selectedYear}
                 onChange={(e) => setSelectedYear(e.target.value)}
                 options={years.map(year => ({
                   value: year,
@@ -283,7 +283,7 @@ function ReportsPage() {
                 className="w-28"
               />
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 w-full sm:w-auto justify-center">
               <Button onClick={handleExportPDF} variant="danger" size="sm">יצא ל-PDF</Button>
               <Button onClick={handleExportExcel} variant="success" size="sm">יצא ל-Excel</Button>
             </div>
@@ -297,20 +297,20 @@ function ReportsPage() {
             <AnnualCashFlowChart ref={chartRef} reportData={reportData} />
           )}
           {!loading && !error && reportData.length === 0 && (
-              <p>לא נמצאו נתונים לשנה הנבחרת.</p>
+            <p>לא נמצאו נתונים לשנה הנבחרת.</p>
           )}
         </div>
       </div>
 
       {/* Payment Reports Section */}
       <div className="mb-8">
-        <div className="flex flex-wrap justify-between items-center mb-6 pb-4 border-b-2 border-gray-200 gap-4">
-          <h2 className="text-3xl font-bold text-gray-800">
+        <div className="flex flex-col md:flex-row justify-between items-center mb-6 pb-4 border-b-2 border-gray-200 gap-4">
+          <h2 className="text-2xl md:text-3xl font-bold text-gray-800">
             דוחות תשלומים
           </h2>
           <button
             onClick={exportPaymentToCSV}
-            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors font-medium"
+            className="w-full md:w-auto px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors font-medium"
           >
             ייצוא ל-CSV
           </button>
@@ -322,11 +322,10 @@ function ReportsPage() {
             <button
               key={report.id}
               onClick={() => setActiveReport(report.id)}
-              className={`p-6 rounded-lg border-2 transition-all ${
-                activeReport === report.id
+              className={`p-6 rounded-lg border-2 transition-all ${activeReport === report.id
                   ? 'border-blue-500 bg-blue-50 shadow-lg'
                   : 'border-gray-200 bg-white hover:border-blue-300'
-              }`}
+                }`}
             >
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-1">{report.name}</h3>

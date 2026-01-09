@@ -61,6 +61,9 @@ function LoginPage() {
   return (
     <div className="max-w-md mx-auto mt-10">
       <div className="bg-white rounded-xl shadow-lg p-8 border border-gray-200">
+        <div className="flex justify-center mb-6">
+          <img src="/favicon.png" alt="לוגו המערכת" className="h-16 w-auto object-contain hover:opacity-90 transition-opacity" />
+        </div>
         <h2 className="text-2xl font-bold text-center text-gray-800 mb-6">כניסה למערכת</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input

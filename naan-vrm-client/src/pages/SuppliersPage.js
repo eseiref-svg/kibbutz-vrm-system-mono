@@ -119,12 +119,13 @@ function SuppliersPage() {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6 pb-4 border-b-2 border-gray-200">
-        <h2 className="text-3xl font-bold text-gray-800">ניהול ספקים</h2>
+      <div className="flex flex-col md:flex-row justify-between items-center mb-6 pb-4 border-b-2 border-gray-200 gap-4">
+        <h2 className="text-2xl md:text-3xl font-bold text-gray-800">ניהול ספקים</h2>
         {!selectedSupplier && (
           <Button
             variant="success"
             onClick={() => setShowAddForm(!showAddForm)}
+            className="w-full md:w-auto"
           >
             {showAddForm ? 'הסתר טופס' : 'הוסף ספק חדש'}
           </Button>
@@ -164,7 +165,7 @@ function SuppliersPage() {
             onSearch={handleSearch}
             onClear={handleClearSearch}
           />
-          <div className="mt-8">
+          <div className="mt-8 overflow-x-auto">
             {loading ? (
               <p>טוען נתונים...</p>
             ) : (

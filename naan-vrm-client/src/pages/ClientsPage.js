@@ -57,12 +57,12 @@ function ClientsPage() {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6 pb-4 border-b-2 border-gray-200">
-        <h2 className="text-3xl font-bold text-gray-800">ניהול לקוחות</h2>
+      <div className="flex flex-col md:flex-row justify-between items-center mb-6 pb-4 border-b-2 border-gray-200 gap-4">
+        <h2 className="text-2xl md:text-3xl font-bold text-gray-800">ניהול לקוחות</h2>
         {!selectedClient && (
-          <button 
+          <button
             onClick={() => setShowAddForm(!showAddForm)}
-            className="bg-green-500 text-white hover:bg-green-600 font-bold py-2 px-4 rounded-lg"
+            className="bg-green-500 text-white hover:bg-green-600 font-bold py-2 px-4 rounded-lg w-full md:w-auto"
           >
             {showAddForm ? 'הסתר טופס' : 'הוסף לקוח חדש'}
           </button>
@@ -72,24 +72,24 @@ function ClientsPage() {
       {showAddForm && <AddClientForm onClientAdded={handleClientAdded} />}
 
       {selectedClient ? (
-        <ClientDetailsCard 
+        <ClientDetailsCard
           client={selectedClient}
           onBackToList={() => setSelectedClient(null)}
         />
       ) : (
         <>
-          <ClientSearch 
+          <ClientSearch
             query={searchQuery}
             setQuery={setSearchQuery}
             criteria={searchCriteria}
             setCriteria={setSearchCriteria}
             onSearch={handleSearch}
           />
-          <div className="mt-8">
+          <div className="mt-8 overflow-x-auto">
             {loading ? (
               <p>טוען נתונים...</p>
             ) : (
-              <ClientsTable 
+              <ClientsTable
                 clients={clients}
                 onDelete={handleDeleteClient}
                 onRowClick={setSelectedClient}

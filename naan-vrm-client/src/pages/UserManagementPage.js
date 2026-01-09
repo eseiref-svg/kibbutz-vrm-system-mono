@@ -188,9 +188,9 @@ function UserManagementPage() {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6 pb-4 border-b-2 border-gray-200">
-        <h2 className="text-3xl font-bold text-gray-800">ניהול משתמשים</h2>
-        <Button variant="success" onClick={() => handleOpenModal()}>
+      <div className="flex flex-col md:flex-row justify-between items-center mb-6 pb-4 border-b-2 border-gray-200 gap-4">
+        <h2 className="text-2xl md:text-3xl font-bold text-gray-800">ניהול משתמשים</h2>
+        <Button variant="success" onClick={() => handleOpenModal()} className="w-full md:w-auto">
           הוסף משתמש חדש
         </Button>
       </div>
@@ -211,7 +211,7 @@ function UserManagementPage() {
                   { value: 'email', label: 'לפי אימייל' }
                 ]}
                 fullWidth={false}
-                className="sm:w-40"
+                className="w-full sm:w-40"
               />
 
               <Input
@@ -220,7 +220,7 @@ function UserManagementPage() {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={searchCriteria === 'name' ? 'הקלד שם משתמש...' : 'הקלד אימייל...'}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                className="flex-grow"
+                className="flex-grow w-full"
                 showClearButton={true}
                 onClear={handleClearSearch}
               />
@@ -228,14 +228,14 @@ function UserManagementPage() {
               <Button
                 onClick={handleSearch}
                 variant="primary"
-                className="whitespace-nowrap sm:w-auto w-full"
+                className="whitespace-nowrap w-full sm:w-auto"
               >
                 חיפוש
               </Button>
             </div>
           </div>
 
-          <div className="bg-white rounded-xl shadow-lg p-4 border border-gray-200">
+          <div className="bg-white rounded-xl shadow-lg p-4 border border-gray-200 overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead className="bg-gray-100">
                 <tr>

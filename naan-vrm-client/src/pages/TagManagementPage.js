@@ -10,7 +10,7 @@ function TagManagementPage() {
   const [error, setError] = useState('');
   const [editingFieldId, setEditingFieldId] = useState(null);
   const [currentTags, setCurrentTags] = useState('');
-  
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newFieldName, setNewFieldName] = useState('');
   const [newFieldTags, setNewFieldTags] = useState('');
@@ -29,7 +29,7 @@ function TagManagementPage() {
         setLoading(false);
       });
   };
-  
+
   useEffect(() => {
     fetchSupplierFields();
   }, []);
@@ -48,7 +48,7 @@ function TagManagementPage() {
       });
       alert('התגים עודכנו בהצלחה!');
       setEditingFieldId(null);
-      fetchSupplierFields(); 
+      fetchSupplierFields();
     } catch (err) {
       console.error("Error updating tags:", err);
       alert('שגיאה בעדכון התגים.');
@@ -73,18 +73,18 @@ function TagManagementPage() {
       setValidationError('שם התחום הוא שדה חובה');
       return;
     }
-    
+
     const tagsArray = newFieldTags
       .split(',')
       .map(tag => tag.trim())
       .filter(tag => tag !== '');
-    
+
     try {
       await api.post('/supplier-fields', {
         field: newFieldName.trim(),
         tags: tagsArray
       });
-      
+
       alert('תחום חדש נוסף בהצלחה!');
       handleCloseModal();
       fetchSupplierFields();
@@ -98,11 +98,11 @@ function TagManagementPage() {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6 pb-4 border-b-2 border-gray-200">
-        <h2 className="text-3xl font-bold text-gray-800">
+      <div className="flex flex-col md:flex-row justify-between items-center mb-6 pb-4 border-b-2 border-gray-200 gap-4">
+        <h2 className="text-2xl md:text-3xl font-bold text-gray-800">
           ניהול תחומי ספקים
         </h2>
-        <Button variant="success" onClick={() => setIsModalOpen(true)}>
+        <Button variant="success" onClick={() => setIsModalOpen(true)} className="w-full md:w-auto">
           הוסף תחום ספק חדש
         </Button>
       </div>
@@ -126,14 +126,14 @@ function TagManagementPage() {
                       placeholder="הזן תגים מופרדים בפסיק (לדוגמה: אוכל, שתיה, בירה)"
                     />
                     <div className="mt-3 flex gap-2">
-                      <Button 
+                      <Button
                         size="sm"
                         variant="primary"
                         onClick={() => handleSaveClick(field.supplier_field_id)}
                       >
                         שמור
                       </Button>
-                      <Button 
+                      <Button
                         size="sm"
                         variant="outline"
                         onClick={handleCancelClick}
@@ -147,7 +147,7 @@ function TagManagementPage() {
                     <p className="text-gray-600">
                       <strong>תגים:</strong> {field.tags && field.tags.length > 0 ? field.tags.join(', ') : 'אין תגים'}
                     </p>
-                    <button 
+                    <button
                       onClick={() => handleEditClick(field)}
                       className="text-blue-600 hover:underline mt-2 text-sm font-medium"
                     >
@@ -161,8 +161,8 @@ function TagManagementPage() {
         </div>
       )}
 
-      <Modal 
-        isOpen={isModalOpen} 
+      <Modal
+        isOpen={isModalOpen}
         onClose={handleCloseModal}
         title="הוספת תחום ספקים חדש"
         size="md"
@@ -174,9 +174,9 @@ function TagManagementPage() {
         }
       >
         <div className="space-y-4">
-          <Input 
-            label="שם התחום" 
-            value={newFieldName} 
+          <Input
+            label="שם התחום"
+            value={newFieldName}
             onChange={(e) => setNewFieldName(e.target.value)}
             placeholder="לדוגמה: אלקטרוניקה"
             required

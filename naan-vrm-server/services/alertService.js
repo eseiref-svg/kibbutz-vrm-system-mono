@@ -89,11 +89,11 @@ class AlertService {
   }
 
   generateNotificationTitle(alertType, daysUntilDue) {
-    if (alertType === 'upcoming_payment') return '⏰ תזכורת: תשלום בעוד 7 ימים';
+    if (alertType === 'upcoming_payment') return 'תזכורת: תשלום בעוד 7 ימים';
     if (alertType === 'payment_due_today') return 'תשלום בתאריך היעד - היום!';
     if (alertType === 'payment_overdue') {
       const daysOverdue = Math.abs(daysUntilDue);
-      return `⚠️ איחור בתשלום - ${daysOverdue} ימים`;
+      return `איחור בתשלום - ${daysOverdue} ימים`;
     }
     return 'התראת תשלום';
   }

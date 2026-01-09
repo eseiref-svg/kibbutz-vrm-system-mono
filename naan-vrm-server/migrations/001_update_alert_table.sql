@@ -29,7 +29,7 @@ CREATE INDEX IF NOT EXISTS idx_alert_severity ON "alert"("severity");
 ALTER TABLE "notifications"
 ADD COLUMN IF NOT EXISTS "type" VARCHAR(20) DEFAULT 'info';
 
-COMMENT ON TABLE "alert" IS 'התראות על אי-עמידה בתנאי תשלום';
-COMMENT ON COLUMN "alert"."alert_type" IS 'סוג ההתראה: upcoming_payment, payment_due_today, payment_overdue';
-COMMENT ON COLUMN "alert"."severity" IS 'חומרת ההתראה: low, medium, high, critical';
+COMMENT ON TABLE "alert" IS 'Alerts for payment term violations';
+COMMENT ON COLUMN "alert"."alert_type" IS 'Alert Type: upcoming_payment, payment_due_today, payment_overdue';
+COMMENT ON COLUMN "alert"."severity" IS 'Alert Severity: low, medium, high, critical';
 

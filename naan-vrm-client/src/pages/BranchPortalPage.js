@@ -131,9 +131,12 @@ function BranchPortalPage() {
   return (
     <div>
       <div className="flex justify-between items-center mb-6 pb-4 border-b-2 border-gray-200">
-        <h2 className="text-3xl font-bold text-gray-800">
-          פורטל מנהל ענף {branch ? `- ${branch.name}` : ''}
-        </h2>
+        <div className="flex items-center gap-4">
+          <img src="/favicon.png" alt="לוגו המערכת" className="h-12 w-auto object-contain hover:opacity-90 transition-opacity" />
+          <h2 className="text-3xl font-bold text-gray-800">
+            פורטל מנהל ענף {branch ? `- ${branch.name}` : ''}
+          </h2>
+        </div>
         {branch && (
           <Button variant="success" onClick={handleExportPDF}>
             ייצוא דוח תקציב (PDF)

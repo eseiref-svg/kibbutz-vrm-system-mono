@@ -282,7 +282,7 @@ function UnifiedSupplierForm({
 
                 <div className="border-t pt-2 mt-2">
                     <h4 className="text-md font-semibold mb-2">כתובת</h4>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <Input
                             name="city"
                             label="עיר"

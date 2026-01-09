@@ -9,7 +9,7 @@ let poolConfig;
 
 if (process.env.DATABASE_URL) {
   // PRODUCTION environment - Railway provides DATABASE_URL
-  console.log('מתחבר ל-DB: PRODUCTION (Railway)');
+  console.log('Connecting to DB: PRODUCTION (Railway)');
   poolConfig = {
     connectionString: process.env.DATABASE_URL,
     ssl: {
@@ -21,7 +21,7 @@ if (process.env.DATABASE_URL) {
   };
 } else {
   // DEVELOPMENT environment - local variables
-  console.log('מתחבר ל-DB: DEVELOPMENT (מקומי)');
+  console.log('Connecting to DB: DEVELOPMENT (Local)');
   poolConfig = {
     user: process.env.DB_USER,
     host: process.env.DB_HOST,
@@ -32,7 +32,7 @@ if (process.env.DATABASE_URL) {
     idleTimeoutMillis: 30000,
     max: 20,
   };
-  console.log('הגדרות DB מקומי:', {
+  console.log('Local DB Config:', {
     host: process.env.DB_HOST,
     port: process.env.DB_PORT,
     database: process.env.DB_NAME,
@@ -44,7 +44,7 @@ const pool = new Pool(poolConfig);
 
 // Handle pool errors
 pool.on('error', (err, client) => {
-  console.error('❌ שגיאה בחיבור ל-DB:', err);
+  console.error('❌ DB Connection Error:', err);
   process.exit(-1);
 });
 
@@ -55,7 +55,7 @@ pool.connect()
     client.release();
   })
   .catch(err => {
-    console.error('❌ חיבור ל-DB נכשל:', err.message);
+    console.error('❌ DB Connection Failed:', err.message);
   });
 
 module.exports = {
