@@ -49,7 +49,7 @@ function calculateDueDate(transactionDate, terms) {
     baseDueDate.setHours(0, 0, 0, 0);
 
     // If terms are immediate, return the base date (no 5th/20th rule usually?)
-    // User said: "תשלום שוטף +35, יתבצע ... ב- 5 או ב- 20"
+    // User said: "Current + 35 payment... will be executed on the 5th or 20th"
     // Does 'immediate' also follow 5th/20th? Usually Immediate means Immediate. 
     if (terms === 'immediate' || creditDays === 0) {
         return baseDueDate;

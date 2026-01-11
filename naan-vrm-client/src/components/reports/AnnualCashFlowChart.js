@@ -32,26 +32,26 @@ const AnnualCashFlowChart = forwardRef(({ reportData }, ref) => {
       legend: { position: 'top', align: 'end', labels: { usePointStyle: true, boxWidth: 8, padding: 20, font: { size: 12 } } },
       title: { display: false },
     },
-    scales: { 
-        y: { 
-            beginAtZero: true,
-            ticks: {
-                callback: function(value) {
-                    if (value >= 1000000) return '₪' + (value / 1000000) + 'M';
-                    if (value >= 1000) return '₪' + (value / 1000) + 'K';
-                    return '₪' + value; 
-                }
-            }
-        } 
+    scales: {
+      y: {
+        beginAtZero: true,
+        ticks: {
+          callback: function (value) {
+            if (value >= 1000000) return '₪' + (value / 1000000) + 'M';
+            if (value >= 1000) return '₪' + (value / 1000) + 'K';
+            return '₪' + value;
+          }
+        }
+      }
     }
   };
 
   const labels = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
-  
+
   const incomeData = new Array(12).fill(0);
   const expenseData = new Array(12).fill(0);
 
-  if(reportData){
+  if (reportData) {
     reportData.forEach(item => {
       const monthIndex = parseInt(item.month.split('-')[1], 10) - 1;
       incomeData[monthIndex] = parseFloat(item.income);
@@ -83,8 +83,8 @@ const AnnualCashFlowChart = forwardRef(({ reportData }, ref) => {
 
   return (
     <div className="relative" style={{ height: '400px' }}>
-        {/* Passing ref to Line component allows us to "capture" it */}
-        <Line ref={ref} options={options} data={data} />
+      {/* Passing ref to Line component allows us to "capture" it */}
+      <Line ref={ref} options={options} data={data} />
     </div>
   );
 });

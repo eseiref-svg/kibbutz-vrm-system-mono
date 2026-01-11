@@ -2,6 +2,29 @@
 
 מדריך שינויים מלא בין כל גרסה וגרסה של מערכת ניהול הספקים (VRM).
 
+## Version 2.6.0 - Dashboard & Branch Management Overhaul
+**Release Date:** 11/01/2026
+**Type:** Major Feature Update
+
+### שינויים עיקריים (Key Features)
+
+#### 1. מערכת ניהול ענפים (Branch Management System)
+- **פורטל ניהול חדש** - דף ייעודי (`/branches`) לניהול מלא של ענפי הקיבוץ: יצירה, עריכה, וניהול סטטוס (עסקי/קהילתי).
+- **הקצאה חכמה** - אפשרות לשייך מנהל לענף ישירות מתוך מסך ניהול המשתמשים, כולל יצירת ענף חדש תוך כדי רישום משתמש ("Inline Creation").
+
+#### 2. לוח מחוונים ושליטה (Payment Control Panel)
+- **דשבורד משודרג** - שדרוג "לוח הבקרה" (`/payments`) עם יכולות סינון מתקדמות (חודשי / 7 ימים).
+- **ויזואליזציה** - צביעת שורות חכמה (אדום לאיחור, ירוק להיום) וסטטיסטיקות בזמן אמת על חובות ספקים מול לקוחות.
+- **שקיפות** - הצגת נתונים ברורים על "סה"כ פתוח" ו"צפי תזרים".
+
+#### 3. דשבורד גזבר (Treasurer Dashboard Enhancements)
+- **תזרים מזומנים נטו** - חישוב אוטומטי של תזרים צפוי (יתרה בבנק + הכנסות צפויות - הוצאות צפויות).
+- **Contiki Integration** - הכנה לאינטגרציה עם מערכת קונטיקי להוצאות לפי ענפים (Placeholder Widget).
+- **עדכונים חיים** - מנגנון עדכון דינמי המרענן את הנתונים בדשבורד מיד לאחר עריכת ייתרת הבנק.
+- **Net Value Logic** - שיפור דיוק הנתונים ע"י מעבר לחישוב "ערך נטו" (הכנסות פחות הוצאות) במקום סכימה פשוטה.
+
+---
+
 ## Version 2.5.0 - Supplier Requests & Address Management
 **Release Date:** 26/12/2025
 **Type:** Feature & Infrastructure Refactoring
@@ -188,6 +211,7 @@ cd ../naan-vrm-client && npm install
 
 | Version | Date | Type | Summary |
 |---------|------|------|---------|
+| **2.6.0** | 11/01/2026 | Major | Branch Config & Dashboard Overhaul |
 | **2.5.0** | 26/12/2025 | Feature | Supplier Requests & Centralized Addresses |
 | **2.4.0** | 22/12/2025 | Feature | Supplier Quality Rating & Control |
 | **2.3.0** | 22/12/2025 | Feature | Hybrid Client/Payment Req flow |

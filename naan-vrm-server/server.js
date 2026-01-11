@@ -140,20 +140,133 @@ app.put('/api/dashboard/bank-balance', auth, async (req, res) => {
 
 app.post('/api/users/register', async (req, res) => {
   try {
-    const { first_name, surname, email, phone_no, password, role } = req.body;
+    const { first_name, surname, email, phone_no, password, role, branch_id, new_branch_name, is_business_branch } = req.body;
+
+    // Check if email exists
     const user = await db.query('SELECT * FROM "user" WHERE email = $1', [email]);
     if (user.rows.length > 0) {
       return res.status(400).json({ message: 'Email already exists' });
     }
-    const salt = await bcrypt.genSalt(10);
-    const passwordHash = await bcrypt.hash(password, salt);
-    const newUser = await db.query(
-      'INSERT INTO "user" (first_name, surname, email, phone_no, password, role, status) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING user_id, email, first_name',
-      [first_name, surname, email, phone_no, passwordHash, role, 'active']
-    );
-    res.status(201).json(newUser.rows[0]);
+
+    const client = await db.pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Create User
+      const salt = await bcrypt.genSalt(10);
+      const passwordHash = await bcrypt.hash(password, salt);
+      const newUser = await client.query(
+        'INSERT INTO "user" (first_name, surname, email, phone_no, password, role, status) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING user_id, email, first_name',
+        [first_name, surname, email, phone_no, passwordHash, role, 'active']
+      );
+      const userId = newUser.rows[0].user_id;
+
+      // Handle Branch Assignment
+      if (role === 'branch_manager' || role === 'community_manager') {
+        if (new_branch_name) {
+          // Create New Branch
+          // 1. Create Balance
+          const balRes = await client.query('INSERT INTO balance (debit, credit) VALUES (0, 0) RETURNING balance_id');
+          const balanceId = balRes.rows[0].balance_id;
+
+          // 2. Create Branch
+          // Logic: If role is community_manager, force business=false? Or let UI decide? UI sends is_business_branch.
+          // Default to is_business_branch if provided, else false.
+          const isBusiness = is_business_branch === true || is_business_branch === 'true';
+
+          await client.query(
+            'INSERT INTO branch (name, business, manager_id, balance_id) VALUES ($1, $2, $3, $4)',
+            [new_branch_name, isBusiness, userId, balanceId]
+          );
+        } else if (branch_id && branch_id !== 'new') {
+          // Assign to Existing Branch
+          await client.query(
+            'UPDATE branch SET manager_id = $1 WHERE branch_id = $2',
+            [userId, branch_id]
+          );
+        }
+      }
+
+      await client.query('COMMIT');
+      res.status(201).json(newUser.rows[0]);
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   } catch (err) {
-    console.error('Error creating client request:', err);
+    console.error('Error creating user:', err);
+    res.status(500).send('Server Error');
+  }
+});
+
+// Update User (CRUD Update)
+app.put('/api/users/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { first_name, surname, email, phone_no, password, role, status, branch_id, new_branch_name, is_business_branch } = req.body;
+
+    const client = await db.pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // 1. Update User Details
+      let userUpdateQuery = `
+        UPDATE "user" 
+        SET first_name = $1, surname = $2, email = $3, phone_no = $4, role = $5, status = $6
+      `;
+      const queryParams = [first_name, surname, email, phone_no, role, status];
+
+      if (password && password.trim()) {
+        const salt = await bcrypt.genSalt(10);
+        const passwordHash = await bcrypt.hash(password, salt);
+        userUpdateQuery += `, password = $${queryParams.length + 1}`;
+        queryParams.push(passwordHash);
+      }
+
+      userUpdateQuery += ` WHERE user_id = $${queryParams.length + 1} RETURNING user_id, email, first_name, surname, role`;
+      queryParams.push(id);
+
+      const userRes = await client.query(userUpdateQuery, queryParams);
+
+      if (userRes.rows.length === 0) {
+        throw new Error('User not found');
+      }
+
+      // 2. Handle Branch Assignment
+      if (role === 'branch_manager' || role === 'community_manager') {
+        if (new_branch_name) {
+          // Create New Branch
+          const balRes = await client.query('INSERT INTO balance (debit, credit) VALUES (0, 0) RETURNING balance_id');
+          const isBusiness = is_business_branch === true || is_business_branch === 'true';
+          await client.query(
+            'INSERT INTO branch (name, business, manager_id, balance_id) VALUES ($1, $2, $3, $4)',
+            [new_branch_name, isBusiness, id, balRes.rows[0].balance_id]
+          );
+        } else if (branch_id && branch_id !== 'new') {
+          // Assign to Existing Branch
+          // Note: This ADDS the user as manager to the target branch. 
+          // Does it remove them from others? User asked to "Manage" it. 
+          // Let's strictly Apply the assignment.
+          await client.query(
+            'UPDATE branch SET manager_id = $1 WHERE branch_id = $2',
+            [id, branch_id]
+          );
+        }
+      }
+
+      await client.query('COMMIT');
+      res.json(userRes.rows[0]);
+    } catch (error) {
+      await client.query('ROLLBACK');
+      console.error(error);
+      res.status(500).send('Error updating user');
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    console.error(err.message);
     res.status(500).send('Server Error');
   }
 });
@@ -177,7 +290,7 @@ app.post('/api/users/login', async (req, res) => {
     jwt.sign(
       payload,
       process.env.JWT_SECRET,
-      { expiresIn: '1h' },
+      { expiresIn: '24h' },
       (err, token) => {
         if (err) throw err;
         res.json({ token, user: { id: user.user_id, role: user.role, name: user.first_name } });
@@ -286,16 +399,90 @@ app.put('/api/supplier-fields/:id', async (req, res) => {
   }
 });
 
-// Get all branches
+// Get all branches (CRUD Read)
 app.get('/api/branches', async (req, res) => {
   try {
-    const result = await db.query('SELECT branch_id, name FROM branch ORDER BY name');
+    // Include manager name for display
+    const result = await db.query(`
+      SELECT b.*, u.first_name || ' ' || u.surname as manager_name 
+      FROM branch b 
+      LEFT JOIN "user" u ON b.manager_id = u.user_id 
+      ORDER BY b.name
+    `);
     res.json(result.rows);
   } catch (err) {
     console.error(err.message);
     res.status(500).send('Server Error');
   }
 });
+
+// Create Branch (CRUD Create)
+app.post('/api/branches', auth, async (req, res) => {
+  try {
+    const { name, business, manager_id } = req.body;
+    if (!name) return res.status(400).json({ message: 'Branch Name is required' });
+
+    const client = await db.pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Create Balance
+      const balRes = await client.query('INSERT INTO balance (debit, credit) VALUES (0, 0) RETURNING balance_id');
+      const balanceId = balRes.rows[0].balance_id;
+
+      // Create Branch
+      const result = await client.query(
+        'INSERT INTO branch (name, business, manager_id, balance_id) VALUES ($1, $2, $3, $4) RETURNING *',
+        [name, business || false, manager_id || null, balanceId]
+      );
+
+      await client.query('COMMIT');
+      res.status(201).json(result.rows[0]);
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server Error');
+  }
+});
+
+// Update Branch (CRUD Update)
+app.put('/api/branches/:id', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, business, manager_id } = req.body;
+
+    // Build update query dynamically or static
+    const result = await db.query(
+      `UPDATE branch SET name = $1, business = $2, manager_id = $3 WHERE branch_id = $4 RETURNING *`,
+      [name, business, manager_id || null, id]
+    );
+
+    if (result.rows.length === 0) return res.status(404).json({ message: 'Branch not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server Error');
+  }
+});
+
+// Delete Branch (CRUD Delete - Only if unused? Or Soft Delete? Let's assume standard delete for now, DB constraints will block if used)
+app.delete('/api/branches/:id', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    // Check usage? DB constraints will likely throw error if payments/sales exist.
+    await db.query('DELETE FROM branch WHERE branch_id = $1', [id]);
+    res.json({ message: 'Branch deleted' });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Could not delete branch. It may have related data.');
+  }
+});
+
 
 // Get branches that have transactions in the current table
 app.get('/api/branches/active', async (req, res) => {
@@ -997,9 +1184,26 @@ app.get('/api/dashboard/summary', async (req, res) => {
       dateFilter = `WHERE t.due_date >= date_trunc('year', NOW())`;
     }
 
-    const validStatusFilter = `(t.status = 'open' OR t.status = 'paid')`;
+    const validStatusFilter = "(t.status = 'open' OR t.status = 'paid' OR t.status = 'partially_paid')";
 
-    const balanceQuery = `SELECT SUM(value) as total_balance FROM transaction t ${dateFilter} AND ${validStatusFilter}`;
+    // Net Value (Income - Expenses) for Current Year (Open + Paid)
+    // Positive = Money coming in (Sales)
+    // Negative = Money going out (Payment Req)
+    const balanceQuery = `
+      SELECT 
+        COALESCE(SUM(CASE 
+          WHEN s.sale_id IS NOT NULL THEN t.value  -- Income
+          WHEN pr.payment_req_id IS NOT NULL THEN -t.value -- Expense
+          ELSE 0 
+        END), 0) as total_balance
+      FROM transaction t
+      LEFT JOIN sale s ON t.transaction_id = s.transaction_id
+      LEFT JOIN payment_req pr ON t.transaction_id = pr.transaction_id
+      WHERE 
+        t.due_date >= DATE_TRUNC('year', CURRENT_DATE)
+        AND t.due_date < DATE_TRUNC('year', CURRENT_DATE) + INTERVAL '1 year'
+        AND (t.status = 'open' OR t.status = 'paid')
+    `;
     const balanceResult = await db.query(balanceQuery);
 
     const expensesQuery = `
@@ -1007,25 +1211,78 @@ app.get('/api/dashboard/summary', async (req, res) => {
         FROM transaction t
         JOIN payment_req pr ON t.transaction_id = pr.transaction_id
         JOIN branch b ON pr.branch_id = b.branch_id
-        ${dateFilter.replace("t.due_date", "t.due_date")} AND ${validStatusFilter}
+        ${dateFilter} AND ${validStatusFilter}
         GROUP BY b.name
         ORDER BY total_expenses DESC;
       `;
     const expensesResult = await db.query(expensesQuery);
 
+    // Overdue Invoices: Open & Past Due
     const overdueQuery = `SELECT COUNT(*) FROM transaction WHERE due_date < NOW() AND status = 'open'`;
     const overdueResult = await db.query(overdueQuery);
 
+    // Upcoming Payments (This Month): Open Expenses Only
+    const upcomingQuery = `
+      SELECT COALESCE(SUM(t.value), 0) as upcoming_payments
+      FROM transaction t
+      JOIN payment_req pr ON t.transaction_id = pr.transaction_id
+      WHERE 
+        t.status = 'open' 
+        AND t.due_date >= DATE_TRUNC('month', CURRENT_DATE)
+        AND t.due_date < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'
+    `;
+    const upcomingResult = await db.query(upcomingQuery);
+
     const summaryData = {
       totalSupplierBalance: balanceResult.rows[0].total_balance || 0,
+      upcomingPayments: upcomingResult.rows[0].upcoming_payments || 0,
+      overdueInvoices: overdueResult.rows[0].count,
       expensesByBranch: expensesResult.rows,
-      overdueInvoices: overdueResult.rows[0].count || 0
+      yearToDateIncome: 0,
+      yearToDateExpenses: 0,
+      netCashFlow: 0
     };
+
+    // --- New Logic for Cash Flow Widget (Current Year) ---
+    // Income: Open Sales/Client Requests (positive transactions linked to sales)
+    const yearToDateIncomeQuery = `
+      SELECT SUM(t.value) as total
+      FROM transaction t
+      JOIN sale s ON t.transaction_id = s.transaction_id
+      WHERE t.status = 'open'
+        AND EXTRACT(YEAR FROM t.due_date) = EXTRACT(YEAR FROM CURRENT_DATE)
+    `;
+    // Expenses: Open Payment Requests/Supplier Payments (transactions linked to payment_req)
+    // Note: Expenses are usually stored as positive values in the transaction table if 'value' represents the amount to pay?
+    // Let's assume standard behavior: if it's a payment request, the transaction value represents the cost.
+    // If system stores expenses as negative, we should use ABS or SUM negative.
+    // Based on `totalSupplierBalance` query above which uses SUM(value), it seems values are signed properly or positive for debts.
+    // Let's verify by just summing them. If they are stored as negative (credit), this will return negative.
+    // However, usually "Expenses" in a chart are shown as a positive bar.
+    // Safest bet for "Expenses" = Sum of Unpaid Supplier Transactions.
+    const yearToDateExpensesQuery = `
+      SELECT SUM(t.value) as total
+      FROM transaction t
+      JOIN payment_req pr ON t.transaction_id = pr.transaction_id
+      WHERE t.status = 'open' 
+        AND EXTRACT(YEAR FROM t.due_date) = EXTRACT(YEAR FROM CURRENT_DATE)
+    `;
+
+    const [incomeRes, expensesRes, bankBalanceRes] = await Promise.all([
+      db.query(yearToDateIncomeQuery),
+      db.query(yearToDateExpensesQuery),
+      db.query("SELECT value FROM system_settings WHERE key = 'bank_balance'")
+    ]);
+
+    const bankBalance = parseFloat(bankBalanceRes.rows[0]?.value || 0);
+    summaryData.yearToDateIncome = parseFloat(incomeRes.rows[0].total || 0);
+    summaryData.yearToDateExpenses = parseFloat(expensesRes.rows[0].total || 0);
+    summaryData.netCashFlow = bankBalance + summaryData.yearToDateIncome - summaryData.yearToDateExpenses;
 
     res.json(summaryData);
   } catch (err) {
     console.error(err.message);
-    res.status(500).send('Server Error');
+    res.status(500).send(err.message);
   }
 });
 
@@ -1036,9 +1293,13 @@ app.get('/api/reports/annual-cash-flow', async (req, res) => {
     const query = `
         SELECT 
           TO_CHAR(DATE_TRUNC('month', t.due_date), 'YYYY-MM') AS month,
-          SUM(CASE WHEN t.value >= 0 THEN t.value ELSE 0 END) AS income, 
-          SUM(CASE WHEN t.value < 0 THEN t.value ELSE 0 END) AS expense 
+          -- Income = All Sales (Paid + Open)
+          SUM(CASE WHEN sa.sale_id IS NOT NULL THEN t.value ELSE 0 END) AS income,
+          -- Expenses = All Payment Requests (Paid + Open), returned as positive for chart
+          SUM(CASE WHEN pr.payment_req_id IS NOT NULL THEN ABS(t.value) ELSE 0 END) AS expense
         FROM transaction t
+        LEFT JOIN sale sa ON t.transaction_id = sa.transaction_id
+        LEFT JOIN payment_req pr ON t.transaction_id = pr.transaction_id
         WHERE EXTRACT(YEAR FROM t.due_date) = $1
           AND (t.status = 'paid' OR t.status = 'open')
         GROUP BY month
@@ -1048,7 +1309,64 @@ app.get('/api/reports/annual-cash-flow', async (req, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error(err.message);
-    res.status(500).send('Server Error');
+    res.status(500).send(err.message);
+  }
+});
+
+// Report: Branch Profitability (Business Branches Only)
+app.get('/api/reports/branch-profitability', async (req, res) => {
+  try {
+    const query = `
+      SELECT 
+        b.name as branch_name,
+        SUM(CASE WHEN sa.sale_id IS NOT NULL THEN t.value ELSE 0 END) as total_income,
+        SUM(CASE WHEN pr.payment_req_id IS NOT NULL THEN ABS(t.value) ELSE 0 END) as total_expense,
+        (SUM(CASE WHEN sa.sale_id IS NOT NULL THEN t.value ELSE 0 END) - 
+         SUM(CASE WHEN pr.payment_req_id IS NOT NULL THEN ABS(t.value) ELSE 0 END)) as profit
+      FROM transaction t
+      LEFT JOIN sale sa ON t.transaction_id = sa.transaction_id
+      LEFT JOIN payment_req pr ON t.transaction_id = pr.transaction_id
+      JOIN branch b ON COALESCE(sa.branch_id, pr.branch_id) = b.branch_id
+      WHERE b.business = true
+        AND EXTRACT(YEAR FROM t.due_date) = EXTRACT(YEAR FROM CURRENT_DATE)
+      GROUP BY b.name
+      ORDER BY profit DESC
+    `;
+    const result = await db.query(query);
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send(err.message);
+  }
+});
+
+// Report: Client Payment Patterns (Collections Focus)
+app.get('/api/reports/client-patterns', async (req, res) => {
+  try {
+    // Logic: 
+    // Show clients with min 2 transactions.
+    // late_percentage = (Count of overdue items / Total items) * 100
+    // Group by Client AND Branch (Owner)
+    const query = `
+      SELECT 
+        c.name as client_name, 
+        b.name as branch_name,
+        COUNT(*) as total_transactions,
+        ROUND((COUNT(*) FILTER (WHERE t.status = 'open' AND t.due_date < CURRENT_DATE)::numeric / COUNT(*)::numeric) * 100, 1) as late_percentage
+      FROM transaction t
+      JOIN sale s ON t.transaction_id = s.transaction_id
+      JOIN client c ON s.client_id = c.client_id
+      JOIN branch b ON s.branch_id = b.branch_id
+      GROUP BY c.name, b.name
+      HAVING COUNT(*) >= 2
+      ORDER BY late_percentage DESC
+      LIMIT 20
+    `;
+    const result = await db.query(query);
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send(err.message);
   }
 });
 
@@ -1328,7 +1646,7 @@ app.get('/api/payments/dashboard', async (req, res) => {
           LEFT JOIN payment_req pr ON t.transaction_id = pr.transaction_id
           WHERE t.status = 'open' 
           AND pr.payment_req_id IS NOT NULL 
-          ${branchId ? 'AND pr.branch_id = $1' : ''}
+          ${(branchId && branchId !== 'all') ? 'AND pr.branch_id = $1' : ''}
           
           UNION ALL
           
@@ -1348,7 +1666,7 @@ app.get('/api/payments/dashboard', async (req, res) => {
           LEFT JOIN sale sa ON t.transaction_id = sa.transaction_id
           WHERE t.status = 'open'
           AND sa.sale_id IS NOT NULL 
-          ${branchId ? 'AND sa.branch_id = $1' : ''}
+          ${(branchId && branchId !== 'all') ? 'AND sa.branch_id = $1' : ''}
         )
         SELECT 
           -- Overdue Payables (Suppliers)
@@ -1363,7 +1681,7 @@ app.get('/api/payments/dashboard', async (req, res) => {
           COUNT(*) FILTER (WHERE payment_status = 'due_today') as due_today_count,
           COUNT(*) FILTER (WHERE payment_status = 'upcoming') as upcoming_count,
           COUNT(*) as total_open,
-          SUM(ABS(value)) as total_amount
+          SUM(CASE WHEN type = 'sale' THEN value ELSE -value END) as total_amount
         FROM all_transactions
       `;
 
@@ -1388,7 +1706,7 @@ app.get('/api/payments/dashboard', async (req, res) => {
     });
   } catch (err) {
     console.error(err.message);
-    res.status(500).send('Server Error');
+    res.status(500).send(err.message);
   }
 });
 
@@ -1501,13 +1819,23 @@ app.get('/api/payments/overdue', async (req, res) => {
 
 app.get('/api/payments/upcoming', async (req, res) => {
   try {
-    const { branchId } = req.query;
+    const { branchId, interval } = req.query;
 
-    let branchFilter = '';
+    // Validate interval to prevent SQL injection
+    let intervalValue = '7 days';
+    if (interval === '1 month') {
+      intervalValue = '1 month';
+    } else if (interval === '7 days') {
+      intervalValue = '7 days';
+    }
+
+    let branchFilterPR = '';
+    let branchFilterSA = '';
     let params = [];
 
-    if (branchId) {
-      branchFilter = 'AND (pr.branch_id = $1 OR sa.branch_id = $1)';
+    if (branchId && branchId !== 'all') {
+      branchFilterPR = 'AND pr.branch_id = $1';
+      branchFilterSA = 'AND sa.branch_id = $1';
       params = [branchId];
     }
 
@@ -1529,9 +1857,9 @@ app.get('/api/payments/upcoming', async (req, res) => {
         LEFT JOIN branch b ON pr.branch_id = b.branch_id
         WHERE t.status = 'open' 
           AND t.due_date >= CURRENT_DATE
-          AND t.due_date <= CURRENT_DATE + INTERVAL '7 days'
+          AND t.due_date <= CURRENT_DATE + INTERVAL '${intervalValue}'
           AND pr.payment_req_id IS NOT NULL
-          ${branchFilter}
+          ${branchFilterPR}
         
         UNION ALL
         
@@ -1552,9 +1880,9 @@ app.get('/api/payments/upcoming', async (req, res) => {
         LEFT JOIN branch b ON sa.branch_id = b.branch_id
         WHERE t.status = 'open' 
           AND t.due_date >= CURRENT_DATE
-          AND t.due_date <= CURRENT_DATE + INTERVAL '7 days'
+          AND t.due_date <= CURRENT_DATE + INTERVAL '${intervalValue}'
           AND sa.sale_id IS NOT NULL
-          ${branchFilter}
+          ${branchFilterSA}
         
         ORDER BY days_until_due ASC
       `;
@@ -1563,7 +1891,7 @@ app.get('/api/payments/upcoming', async (req, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error(err.message);
-    res.status(500).send('Server Error');
+    res.status(500).send(err.message);
   }
 });
 

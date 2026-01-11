@@ -4,7 +4,6 @@ import api from '../api/axiosConfig';
 import InfoCard from '../components/dashboard/InfoCard';
 import BankBalanceWidget from '../components/dashboard/BankBalanceWidget';
 import CashFlowChart from '../components/dashboard/CashFlowChart';
-import ExpensesChart from '../components/dashboard/ExpensesChart';
 import SupplierRequestsWidget from '../components/dashboard/SupplierRequestsWidget';
 import ClientRequestsWidget from '../components/dashboard/ClientRequestsWidget';
 import SalesApprovalWidget from '../components/dashboard/SalesApprovalWidget';
@@ -141,6 +140,15 @@ function DashboardPage() {
     doc.save(`dashboard_summary_${period}.pdf`);
   };
 
+  const handleBankBalanceUpdate = (newBalance) => {
+    if (summaryData) {
+      setSummaryData(prevData => ({
+        ...prevData,
+        netCashFlow: newBalance + prevData.yearToDateIncome - prevData.yearToDateExpenses
+      }));
+    }
+  };
+
   return (
     <div>
       <div className="flex flex-col md:flex-row justify-between items-center mb-6 pb-4 border-b-2 border-gray-200 gap-4">
@@ -151,7 +159,7 @@ function DashboardPage() {
           </h2>
         </div>
         <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
-          <Select
+          {/* <Select
             value={period}
             onChange={(e) => setPeriod(e.target.value)}
             options={[
@@ -161,7 +169,7 @@ function DashboardPage() {
             ]}
             fullWidth={false}
             className="w-full sm:min-w-[180px]"
-          />
+          /> */}
           <Button variant="success" onClick={handleExportPDF} className="w-full sm:w-auto">
             ייצוא ל-PDF
           </Button>
@@ -174,22 +182,56 @@ function DashboardPage() {
       {!loading && !error && summaryData && (
         <div className="space-y-8">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            <BankBalanceWidget />
-            <InfoCard title="תזרים מזומנים (לתקופה)">
-              <CashFlowChart />
+            <BankBalanceWidget onBalanceUpdate={handleBankBalanceUpdate} />
+            <InfoCard title="תזרים מזומנים (שנה נוכחית)">
+              <CashFlowChart
+                income={summaryData.yearToDateIncome || 0}
+                expenses={summaryData.yearToDateExpenses || 0}
+                netCashFlow={summaryData.netCashFlow || 0}
+              />
             </InfoCard>
-            <InfoCard title="הוצאות לפי ענפים (לתקופה)">
-              <Link to="/reports" className="block hover:bg-gray-50 p-2 rounded transition-colors">
-                <ExpensesChart data={summaryData.expensesByBranch} />
-                <div className="text-blue-600 text-sm mt-2 font-medium">לחץ לפרטים נוספים →</div>
-              </Link>
+            <InfoCard title="הוצאות לפי ענפים">
+              <div className="flex flex-col items-center justify-center p-6 text-center space-y-4">
+                <div className="bg-blue-50 p-4 rounded-full">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                </div>
+                <p className="text-gray-600 font-medium">
+                  ניהול הוצאות ענפים מתבצע במערכת Contiki
+                </p>
+                <a
+                  href="https://www.contiki.co.il"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full"
+                >
+                  <Button variant="primary" className="w-full">
+                    מעבר למערכת Contiki
+                  </Button>
+                </a>
+              </div>
             </InfoCard>
             <InfoCard title="מעקב תשלומים">
-              <Link to="/payments" className="block hover:bg-gray-50 p-2 rounded transition-colors">
-                <div className="text-3xl font-extrabold text-blue-700">₪{parseFloat(summaryData.totalSupplierBalance).toLocaleString('he-IL')}</div>
-                <p className="text-gray-600 text-sm my-2">יתרה לתשלום (לתקופה)</p>
-                <div className="text-red-600 font-bold">{summaryData.overdueInvoices} חשבוניות בחריגה</div>
-                <div className="text-blue-600 text-sm mt-2 font-medium">לחץ לפרטים נוספים →</div>
+              <Link to="/payments" className="block hover:bg-gray-50 p-2 rounded transition-colors h-full flex flex-col">
+                <div className="text-center mb-4">
+                  <div className={`text-3xl font-extrabold ${summaryData.totalSupplierBalance >= 0 ? 'text-green-600' : 'text-red-600'}`} dir="ltr">
+                    ₪{parseFloat(summaryData.totalSupplierBalance).toLocaleString('he-IL')}
+                  </div>
+                  <p className="text-gray-600 text-sm mt-1">ערך נטו (הכנסות - הוצאות)</p>
+                </div>
+
+                <div className="text-orange-600 font-bold mb-4 text-right">
+                  תשלומים קרובים (החודש): ₪{parseFloat(summaryData.upcomingPayments || 0).toLocaleString('he-IL')}
+                </div>
+
+                <div className="text-red-600 font-bold mb-4 text-right">
+                  {summaryData.overdueInvoices} חשבוניות בחריגה
+                </div>
+
+                <div className="text-blue-600 text-sm font-medium text-center mt-auto">
+                  לחץ לפרטים נוספים →
+                </div>
               </Link>
             </InfoCard>
           </div>

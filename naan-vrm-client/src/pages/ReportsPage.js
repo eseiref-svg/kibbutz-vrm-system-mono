@@ -18,7 +18,7 @@ function ReportsPage() {
   const chartRef = useRef(null);
 
   // Payment reports state
-  const [activeReport, setActiveReport] = useState('overdue-by-branch');
+  const [activeReport, setActiveReport] = useState('branch-profitability');
   const [paymentReportData, setPaymentReportData] = useState([]);
   const [paymentLoading, setPaymentLoading] = useState(false);
 
@@ -47,9 +47,9 @@ function ReportsPage() {
   const fetchPaymentReportData = useCallback(async () => {
     setPaymentLoading(true);
     try {
-      const endpoint = activeReport === 'overdue-by-branch'
-        ? '/payments/reports/overdue-by-branch'
-        : '/payments/reports/supplier-patterns';
+      const endpoint = activeReport === 'branch-profitability'
+        ? '/reports/branch-profitability'
+        : '/reports/client-patterns';
 
       const response = await api.get(endpoint);
       setPaymentReportData(response.data);
@@ -68,14 +68,20 @@ function ReportsPage() {
     if (!paymentReportData || paymentReportData.length === 0) return;
 
     const headers = activeReport === 'overdue-by-branch'
-      ? ['ענף', 'סכום באיחור', 'מספר חשבוניות']
+      ? ['ענף', 'הכנסות באיחור', 'מספר ח-ן הכנסות', 'הוצאות באיחור', 'מספר ח-ן הוצאות']
       : ['ספק', 'סכום ממוצע', 'זמן תשלום ממוצע', 'אחוז איחורים'];
 
     const csvContent = [
       headers.join(','),
       ...paymentReportData.map(row => {
         if (activeReport === 'overdue-by-branch') {
-          return [row.branch_name, row.total_amount, row.count].join(',');
+          return [
+            row.branch_name,
+            row.overdue_income || 0,
+            row.count_income || 0,
+            row.overdue_expense || 0,
+            row.count_expense || 0
+          ].join(',');
         } else {
           return [row.supplier_name, row.avg_amount, row.avg_days, row.late_percentage].join(',');
         }
@@ -145,18 +151,18 @@ function ReportsPage() {
 
   const paymentReports = [
     {
-      id: 'overdue-by-branch',
-      name: 'דוח חשבוניות בחריגה לפי ענפים',
-      description: 'ניתוח חשבוניות באיחור מקובץ לפי ענף עסקי',
+      id: 'branch-profitability',
+      name: 'דוח רווחיות ענפים (עסקיים)',
+      description: 'מאזן הכנסות והוצאות שנתי לפי ענף',
     },
     {
-      id: 'supplier-patterns',
-      name: 'דוח דפוסי תשלום של ספקים',
-      description: 'ניתוח התנהגות תשלומים של ספקים לאורך זמן',
+      id: 'client-patterns',
+      name: 'דוח מוסר תשלומים של לקוחות',
+      description: 'לקוחות עם פיגורים בתשלום (מינימום 2 עסקאות)',
     },
   ];
 
-  const renderOverdueByBranchReport = () => {
+  const renderBranchProfitabilityReport = () => {
     if (paymentLoading) {
       return <div className="text-center py-8">טוען נתונים...</div>;
     }
@@ -177,35 +183,45 @@ function ReportsPage() {
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                 ענף
               </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                סכום באיחור
+              <th className="px-6 py-3 text-right text-xs font-medium text-green-700 uppercase tracking-wider">
+                סה"כ הכנסות (השנה)
               </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                מספר חשבוניות
+              <th className="px-6 py-3 text-right text-xs font-medium text-red-700 uppercase tracking-wider">
+                סה"כ הוצאות (השנה)
+              </th>
+              <th className="px-6 py-3 text-right text-xs font-medium text-blue-700 uppercase tracking-wider">
+                מאזן רווח/הפסד
               </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {paymentReportData.map((row, index) => (
-              <tr key={index} className="hover:bg-gray-50">
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                  {row.branch_name}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  ₪{parseFloat(row.total_amount).toLocaleString()}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {row.count}
-                </td>
-              </tr>
-            ))}
+            {paymentReportData.map((row, index) => {
+              const profit = parseFloat(row.profit || 0);
+              const profitColor = profit >= 0 ? 'text-green-600' : 'text-red-600';
+              return (
+                <tr key={index} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    {row.branch_name}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-bold">
+                    ₪{parseFloat(row.total_income || 0).toLocaleString()}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600 font-bold">
+                    ₪{parseFloat(row.total_expense || 0).toLocaleString()}
+                  </td>
+                  <td className={`px-6 py-4 whitespace-nowrap text-sm font-bold ${profitColor}`}>
+                    ₪{profit.toLocaleString()}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
     );
   };
 
-  const renderSupplierPatternsReport = () => {
+  const renderClientPatternsReport = () => {
     if (paymentLoading) {
       return <div className="text-center py-8">טוען נתונים...</div>;
     }
@@ -224,36 +240,40 @@ function ReportsPage() {
           <thead className="bg-gray-50">
             <tr>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                ספק
+                לקוח
               </th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                סכום ממוצע
+                ענף משייך
               </th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                זמן תשלום ממוצע
+                מספר עסקאות
               </th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                אחוז איחורים
+                אחוז חובות בפיגור
               </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {paymentReportData.map((row, index) => (
-              <tr key={index} className="hover:bg-gray-50">
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                  {row.supplier_name}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  ₪{parseFloat(row.avg_amount).toLocaleString()}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {row.avg_days} ימים
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {row.late_percentage}%
-                </td>
-              </tr>
-            ))}
+            {paymentReportData.map((row, index) => {
+              const latePct = parseFloat(row.late_percentage);
+              const pctColor = latePct > 20 ? 'text-red-600' : 'text-gray-900';
+              return (
+                <tr key={index} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    {row.client_name}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {row.branch_name}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {row.total_transactions}
+                  </td>
+                  <td className={`px-6 py-4 whitespace-nowrap text-sm font-bold ${pctColor}`}>
+                    {row.late_percentage}%
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -323,8 +343,8 @@ function ReportsPage() {
               key={report.id}
               onClick={() => setActiveReport(report.id)}
               className={`p-6 rounded-lg border-2 transition-all ${activeReport === report.id
-                  ? 'border-blue-500 bg-blue-50 shadow-lg'
-                  : 'border-gray-200 bg-white hover:border-blue-300'
+                ? 'border-blue-500 bg-blue-50 shadow-lg'
+                : 'border-gray-200 bg-white hover:border-blue-300'
                 }`}
             >
               <div>
@@ -337,8 +357,8 @@ function ReportsPage() {
 
         {/* Report Display */}
         <div className="bg-white rounded-lg shadow overflow-hidden">
-          {activeReport === 'overdue-by-branch' && renderOverdueByBranchReport()}
-          {activeReport === 'supplier-patterns' && renderSupplierPatternsReport()}
+          {activeReport === 'branch-profitability' && renderBranchProfitabilityReport()}
+          {activeReport === 'client-patterns' && renderClientPatternsReport()}
         </div>
       </div>
     </div>

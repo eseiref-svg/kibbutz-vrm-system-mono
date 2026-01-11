@@ -12,6 +12,7 @@ import LoginPage from './pages/LoginPage';
 import ReportsPage from './pages/ReportsPage';
 import TagManagementPage from './pages/TagManagementPage';
 import UserManagementPage from './pages/UserManagementPage';
+import BranchManagementPage from './pages/BranchManagementPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import PaymentsDashboardPage from './pages/PaymentsDashboardPage';
 import NotificationsHistoryPage from './pages/NotificationsHistoryPage';
@@ -123,6 +124,7 @@ function Header() {
               <LinkItem to="/reports">דוחות</LinkItem>
               <LinkItem to="/tag-management">ניהול תגים</LinkItem>
               <LinkItem to="/user-management">ניהול משתמשים</LinkItem>
+              <LinkItem to="/branches">ניהול ענפים</LinkItem>
               <LinkItem to="/notifications-history">היסטוריית התראות</LinkItem>
             </nav>
           </div>
@@ -147,6 +149,7 @@ function AppRoutes() {
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/tag-management" element={<TagManagementPage />} />
           <Route path="/user-management" element={<UserManagementPage />} />
+          <Route path="/branches" element={<BranchManagementPage />} />
           <Route path="/notifications-history" element={<NotificationsHistoryPage />} />
         </>
       ) : (

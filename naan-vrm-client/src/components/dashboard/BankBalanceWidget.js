@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../../api/axiosConfig';
 import Button from '../shared/Button';
 
-function BankBalanceWidget() {
+function BankBalanceWidget({ onBalanceUpdate }) {
     const [balance, setBalance] = useState(0);
     const [lastUpdated, setLastUpdated] = useState(null);
     const [isEditing, setIsEditing] = useState(false);
@@ -92,6 +92,11 @@ function BankBalanceWidget() {
             setBalance(response.data.value);
             setLastUpdated(response.data.updated_at);
             setIsEditing(false);
+
+            // Trigger callback to parent
+            if (onBalanceUpdate) {
+                onBalanceUpdate(numericValue);
+            }
         } catch (error) {
             console.error('Error updating bank balance:', error);
             alert('שגיאה בעדכון יתרת הבנק');

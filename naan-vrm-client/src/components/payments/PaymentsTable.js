@@ -24,7 +24,7 @@ const PaymentsTable = ({ payments, loading, onRefresh }) => {
     if (status === 'paid') {
       return <span className="px-3 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">שולם</span>;
     }
-    
+
     if (daysOverdue > 0) {
       if (daysOverdue > 30) {
         return <span className="px-3 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">איחור {daysOverdue} ימים</span>;
@@ -49,13 +49,13 @@ const PaymentsTable = ({ payments, loading, onRefresh }) => {
   const handleMarkAsPaid = async (transactionId) => {
     try {
       setMarkingPaid(prev => ({ ...prev, [transactionId]: true }));
-      
+
       await api.put(`/payments/${transactionId}/mark-paid`, {
         actualDate: new Date().toISOString().split('T')[0]
       });
 
       alert('התשלום סומן כשולם בהצלחה!');
-      
+
       if (onRefresh) {
         onRefresh();
       }
@@ -129,8 +129,8 @@ const PaymentsTable = ({ payments, loading, onRefresh }) => {
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {payments.map((payment) => (
-              <tr 
-                key={payment.transaction_id} 
+              <tr
+                key={payment.transaction_id}
                 className="hover:bg-gray-50 transition-colors cursor-pointer"
                 onClick={() => handleRowClick(payment)}
               >
@@ -144,7 +144,9 @@ const PaymentsTable = ({ payments, loading, onRefresh }) => {
                   <div className="text-sm text-gray-900">{payment.branch_name || 'לא ידוע'}</div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm font-bold text-gray-900">{formatCurrency(payment.value)}</div>
+                  <div className={`text-sm font-bold ${payment.transaction_type === 'sale' ? 'text-green-600' : 'text-red-600'}`} dir="ltr">
+                    {formatCurrency(payment.value)}
+                  </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="text-sm text-gray-900">{formatDate(payment.due_date)}</div>
@@ -160,11 +162,10 @@ const PaymentsTable = ({ payments, loading, onRefresh }) => {
                         handleMarkAsPaid(payment.transaction_id);
                       }}
                       disabled={markingPaid[payment.transaction_id]}
-                      className={`px-4 py-2 rounded-md font-medium transition-colors ${
-                        markingPaid[payment.transaction_id]
-                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                          : 'bg-green-600 text-white hover:bg-green-700'
-                      }`}
+                      className={`px-4 py-2 rounded-md font-medium transition-colors ${markingPaid[payment.transaction_id]
+                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        : 'bg-green-600 text-white hover:bg-green-700'
+                        }`}
                     >
                       {markingPaid[payment.transaction_id] ? 'מסמן...' : 'סמן כשולם'}
                     </button>
@@ -175,7 +176,7 @@ const PaymentsTable = ({ payments, loading, onRefresh }) => {
           </tbody>
         </table>
       </div>
-      
+
       <TransactionDetailsModal
         transaction={selectedTransaction}
         isOpen={isModalOpen}

@@ -186,6 +186,15 @@ function UserManagementPage() {
     }
   };
 
+  // Fetch branches logic
+  const [branches, setBranches] = useState([]);
+  useEffect(() => {
+    // Load branches
+    api.get('/branches').then(res => setBranches(res.data)).catch(err => console.error(err));
+  }, [isModalOpen]); // Reload when modal opens to get fresh list
+
+  // ... (Inside Modal)
+
   return (
     <div>
       <div className="flex flex-col md:flex-row justify-between items-center mb-6 pb-4 border-b-2 border-gray-200 gap-4">
@@ -342,6 +351,49 @@ function UserManagementPage() {
                 label: name
               }))}
             />
+
+            {(currentUser.role === 'branch_manager' || currentUser.role === 'community_manager') && (
+              <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                <label className="block text-sm font-medium text-gray-700 mb-1">שיוך לענף</label>
+                <Select
+                  name="branch_id"
+                  label=""
+                  value={currentUser.branch_id || ''}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setCurrentUser({ ...currentUser, branch_id: val, new_branch_name: val === 'new' ? '' : undefined });
+                  }}
+                  options={[
+                    { value: '', label: 'ללא שיוך' },
+                    ...branches.map(b => ({ value: b.branch_id, label: b.name })),
+                    { value: 'new', label: '+ צור ענף חדש...' }
+                  ]}
+                />
+
+                {currentUser.branch_id === 'new' && (
+                  <div className="mt-2 pl-2 border-r-2 border-blue-200 pr-2">
+                    <Input
+                      name="new_branch_name"
+                      label="שם הענף החדש"
+                      value={currentUser.new_branch_name || ''}
+                      onChange={handleChange}
+                      placeholder="הזן שם ענף..."
+                    />
+                    <div className="flex items-center mt-2">
+                      <input
+                        type="checkbox"
+                        id="is_business_branch"
+                        checked={currentUser.is_business_branch || false}
+                        onChange={(e) => setCurrentUser({ ...currentUser, is_business_branch: e.target.checked })}
+                        className="ml-2"
+                      />
+                      <label htmlFor="is_business_branch" className="text-sm text-gray-700">ענף עסקי (Business)</label>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {isEditing && (
               <Select
                 name="status"

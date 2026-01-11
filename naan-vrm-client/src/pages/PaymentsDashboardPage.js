@@ -49,9 +49,14 @@ const PaymentsDashboardPage = () => {
       if (activeTab === 'overdue') {
         endpoint = '/payments/overdue';
         params.status = 'overdue';
-      } else if (activeTab === 'upcoming') {
+      } else if (activeTab === 'upcoming_week') {
         endpoint = '/payments/upcoming';
         params.status = 'upcoming';
+        params.interval = '7 days';
+      } else if (activeTab === 'upcoming_month') {
+        endpoint = '/payments/upcoming';
+        params.status = 'upcoming';
+        params.interval = '1 month';
       }
 
       const response = await api.get(endpoint, { params });
@@ -104,8 +109,9 @@ const PaymentsDashboardPage = () => {
 
   const tabs = [
     { id: 'all', label: 'כל התשלומים' },
-    { id: 'overdue', label: 'באיחור', count: stats?.overdue_count },
-    { id: 'upcoming', label: 'קרובים (7 ימים)', count: stats?.upcoming_count },
+    { id: 'upcoming_month', label: 'חודש קרוב' },
+    { id: 'upcoming_week', label: '7 ימים קרובים', count: stats?.upcoming_count },
+    { id: 'overdue', label: 'באיחור', count: (parseInt(stats?.overdue_payables_count || 0) + parseInt(stats?.overdue_receivables_count || 0)) },
   ];
 
   return (
@@ -184,7 +190,7 @@ const PaymentsDashboardPage = () => {
             <li>המערכת מבצעת סריקה אוטומטית כל יום בשעה 02:00</li>
             <li>התראות נשלחות 7 ימים לפני מועד התשלום וביום הפירעון</li>
             <li>חשבוניות באיחור מקבלות התראות יומיות</li>
-            <li>ניתן לסמן חשבונית כשולמת באמצעות כפתור "סמן כשולם"</li>
+            <li>ניתן לסמן חשבונית כ-'שולמה' באמצעות כפתור "סמן כשולם"</li>
           </ul>
         </div>
       </div>
