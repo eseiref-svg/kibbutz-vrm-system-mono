@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { PAYMENT_TERMS_OPTIONS } from '../../utils/paymentTerms';
 import Modal from '../shared/Modal';
 import Input from '../shared/Input';
 import Select from '../shared/Select';
@@ -139,12 +140,7 @@ function ApproveClientModal({ isOpen, onClose, clientRequest, onApprove }) {
             label="תנאי תשלום ברירת מחדל ללקוח"
             value={formData.payment_terms}
             onChange={handleChange}
-            options={[
-              { value: 'immediate', label: 'מיידי' },
-              { value: 'current_15', label: 'שוטף +15 ימים' },
-              { value: 'current_35', label: 'שוטף +35 ימים' },
-              { value: 'current_50', label: 'שוטף +50 ימים' }
-            ]}
+            options={PAYMENT_TERMS_OPTIONS}
             fullWidth
           />
           <p className="text-sm text-gray-600 mt-1">

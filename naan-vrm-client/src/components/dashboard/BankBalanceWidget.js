@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../api/axiosConfig';
+import { formatCurrency } from '../../utils/formatCurrency';
 import Button from '../shared/Button';
 
 function BankBalanceWidget({ onBalanceUpdate }) {
@@ -156,7 +157,7 @@ function BankBalanceWidget({ onBalanceUpdate }) {
                 ) : (
                     <>
                         <div className="text-4xl font-extrabold text-green-600 mb-2">
-                            ₪{formatNumber(balance)}
+                            {formatCurrency(balance)}
                         </div>
                         {lastUpdated ? (
                             <p className="text-gray-500 text-xs mt-2">

@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import api from '../api/axiosConfig';
+import { formatCurrency } from '../utils/formatCurrency';
 import { useAuth } from '../context/AuthContext';
 import BalanceCard from '../components/branch-portal/BalanceCard';
 import BranchSupplierSearch from '../components/branch-portal/BranchSupplierSearch';
-import BranchSupplierInfoCard from '../components/branch-portal/BranchSupplierInfoCard';
+// import BranchSupplierInfoCard from '../components/branch-portal/BranchSupplierInfoCard'; // Replaced by shared components
 import RequestSupplierForm from '../components/branch-portal/RequestSupplierForm';
+import SuppliersTable from '../components/SuppliersTable';
+import SupplierDetailsCard from '../components/suppliers/SupplierDetailsCard';
 import NotificationsList from '../components/branch-portal/NotificationsList';
 import Button from '../components/shared/Button';
 import BranchClientManagement from '../components/branch-portal/BranchClientManagement';
@@ -24,6 +27,7 @@ function BranchPortalPage() {
   const [searchCriteria, setSearchCriteria] = useState('name');
   const [loading, setLoading] = useState(true);
   const [showRequestForm, setShowRequestForm] = useState(false);
+  const [selectedSupplier, setSelectedSupplier] = useState(null);
 
   useEffect(() => {
     if (user?.id) {
@@ -44,13 +48,12 @@ function BranchPortalPage() {
 
     const fetchBalance = api.get(`/branches/${branch.branch_id}/balance`);
     const fetchTransactions = api.get(`/branches/${branch.branch_id}/transactions`);
-    const fetchMySuppliers = api.get(`/branches/${branch.branch_id}/suppliers`);
 
-    Promise.all([fetchBalance, fetchTransactions, fetchMySuppliers])
-      .then(([balanceRes, transactionsRes, suppliersRes]) => {
+
+    Promise.all([fetchBalance, fetchTransactions])
+      .then(([balanceRes, transactionsRes]) => {
         setBalance(balanceRes.data);
         setTransactions(transactionsRes.data);
-        setFoundSuppliers(suppliersRes.data);
       })
       .catch(error => console.error("Error fetching branch data:", error))
       .finally(() => setLoading(false));
@@ -59,7 +62,12 @@ function BranchPortalPage() {
 
   const handleSupplierSearch = () => {
     api.get('/suppliers/search', {
-      params: { criteria: searchCriteria, query: searchQuery.trim() }
+      params: {
+        criteria: searchCriteria,
+        query: searchQuery.trim(),
+        status: 'approved',
+        is_active: true
+      }
     })
       .then(response => {
         setFoundSuppliers(response.data);
@@ -107,9 +115,9 @@ function BranchPortalPage() {
     doc.setFontSize(14);
     doc.text('סיכום תקציב:', 190, 35, { align: 'right' });
     doc.setFontSize(12);
-    doc.text(`מסגרת אשראי: ₪${parseFloat(balance.credit).toLocaleString()}`, 190, 45, { align: 'right' });
-    doc.text(`נוצל: ₪${parseFloat(balance.debit).toLocaleString()}`, 190, 52, { align: 'right' });
-    doc.text(`יתרה: ₪${(parseFloat(balance.credit) - parseFloat(balance.debit)).toLocaleString()}`, 190, 59, { align: 'right' });
+    doc.text(`מסגרת אשראי: ${formatCurrency(balance.credit)}`, 190, 45, { align: 'right' });
+    doc.text(`נוצל: ${formatCurrency(balance.debit)}`, 190, 52, { align: 'right' });
+    doc.text(`יתרה: ${formatCurrency(parseFloat(balance.credit) - parseFloat(balance.debit))}`, 190, 59, { align: 'right' });
 
     // Transactions Table
     autoTable(doc, {
@@ -118,7 +126,7 @@ function BranchPortalPage() {
       body: transactions.map(t => [
         new Date(t.due_date).toLocaleDateString('he-IL'),
         t.supplier_name,
-        parseFloat(t.value).toLocaleString(),
+        formatCurrency(t.value),
         t.status === 'paid' ? 'שולם' : t.status === 'open' ? 'פתוח' : 'אחר'
       ]),
       styles: { font: "arial", halign: 'right' },
@@ -171,15 +179,25 @@ function BranchPortalPage() {
               onClear={clearSearch}
             />
             {foundSuppliers.length > 0 && (
-              <div className="mt-4 space-y-4">
-                {foundSuppliers.map(supplier => (
-                  <BranchSupplierInfoCard
-                    key={supplier.supplier_id}
-                    supplier={supplier}
-                    onClear={clearSearch}
+              <div className="mt-4">
+                {/* Using Shared Table and Details Card */}
+                {selectedSupplier ? (
+                  <SupplierDetailsCard
+                    supplier={selectedSupplier}
+                    mode="branch_manager"
                     branchId={branch.branch_id}
+                    onBackToList={() => {
+                      setSelectedSupplier(null);
+                      handleSupplierSearch();
+                    }}
                   />
-                ))}
+                ) : (
+                  <SuppliersTable
+                    suppliers={foundSuppliers}
+                    mode="branch_manager"
+                    onRowClick={(s) => setSelectedSupplier(s)}
+                  />
+                )}
               </div>
             )}
           </div>
@@ -193,6 +211,7 @@ function BranchPortalPage() {
             ref={transactionsWidgetRef}
             branchId={branch.branch_id}
             supplierTransactions={transactions}
+            isBusiness={branch.business}
           />
         </div>
       ) : (

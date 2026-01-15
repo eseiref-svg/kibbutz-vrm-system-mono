@@ -30,7 +30,7 @@ function NotificationsHistoryPage() {
                 params.status = 'unread';
             }
 
-            const response = await api.get('/api/notifications/history', { params });
+            const response = await api.get('/notifications/history', { params });
             setNotifications(response.data.notifications);
             setPagination(response.data.pagination);
         } catch (error) {

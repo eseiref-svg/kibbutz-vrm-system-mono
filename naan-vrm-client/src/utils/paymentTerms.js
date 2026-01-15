@@ -6,12 +6,8 @@
 export const PAYMENT_TERMS_OPTIONS = [
     { value: 'immediate', label: 'מיידי' },
     { value: 'current_15', label: 'שוטף + 15' },
-    { value: 'current_30', label: 'שוטף + 30' },
     { value: 'current_35', label: 'שוטף + 35' },
-    { value: 'current_45', label: 'שוטף + 45' },
     { value: 'current_50', label: 'שוטף + 50' },
-    { value: 'current_60', label: 'שוטף + 60' },
-    { value: 'current_90', label: 'שוטף + 90' },
 ];
 
 export function formatPaymentTerms(terms) {

@@ -1,4 +1,5 @@
 import React from 'react';
+import { formatCurrency } from '../../utils/formatCurrency';
 import { Bar } from 'react-chartjs-2';
 
 function BalanceCard({ balanceData }) {
@@ -34,7 +35,7 @@ function BalanceCard({ balanceData }) {
         <div className="text-center">
           <p className="text-lg text-gray-600">יתרה נוכחית:</p>
           <p className={`text-5xl font-extrabold ${balance >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
-            ₪{balance.toLocaleString('he-IL')}
+            {formatCurrency(balance)}
           </p>
         </div>
         <div className="h-40">

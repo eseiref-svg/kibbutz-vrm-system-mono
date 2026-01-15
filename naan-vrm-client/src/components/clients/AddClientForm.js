@@ -1,16 +1,19 @@
 import React, { useState } from 'react';
 import api from '../../api/axiosConfig';
 import { validatePhoneNumber, validateEmail, validateRequired } from '../../utils/validation';
+import { PAYMENT_TERMS_OPTIONS } from '../../utils/paymentTerms';
 
-function AddClientForm({ onClientAdded }) {
+function AddClientForm({ onClientAdded, initialData = null, onCancel }) {
   const [formData, setFormData] = useState({
-    name: '',
-    poc_name: '',
-    poc_phone: '',
-    poc_email: '',
-    city: '',
-    street: '',
-    postal_code: ''
+    name: initialData?.name || '',
+    client_number: initialData?.client_number || '', // Added client_number
+    poc_name: initialData?.poc_name || '',
+    poc_phone: initialData?.poc_phone || '',
+    poc_email: initialData?.poc_email || '',
+    city: initialData?.city || '',
+    street: initialData?.street_name || '', // Note: DB returns street_name
+    postal_code: initialData?.zip_code || '', // Note: DB returns zip_code
+    payment_terms: initialData?.payment_terms || 'immediate'
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -56,21 +59,44 @@ function AddClientForm({ onClientAdded }) {
       return;
     }
 
+    // Map frontend fields to backend expectation if needed
+    // Backend expects: name, poc_name, poc_phone, poc_email, city, street_name, zip_code, payment_terms, client_number
+    // Frontend state uses: street, postal_code
+    const payload = {
+      ...formData,
+      street_name: formData.street,
+      zip_code: formData.postal_code
+    };
+    // Ensure client_number is sent even if empty string (will be handled as null/empty by backend if logic permits, or we should check)
+    // Backend `client_number || null` logic handles empty string as valid string usually, let's explicit null if empty
+    if (!payload.client_number) delete payload.client_number; // Or send as is if backend handles it. Backend: client_number || null. 
+    // If client_number is '' (empty string), JS `'' || null` is `null`. Correct.
+
     try {
-      await api.post('/clients', formData);
-      alert('הלקוח נוסף בהצלחה!');
+      if (initialData) {
+        await api.put(`/clients/${initialData.client_id}`, payload);
+        alert('הלקוח עודכן בהצלחה!');
+      } else {
+        await api.post('/clients', payload);
+        alert('הלקוח נוסף בהצלחה!');
+      }
+
       onClientAdded();
-      setFormData({
-        name: '',
-        poc_name: '',
-        poc_phone: '',
-        poc_email: '',
-        city: '',
-        street: '',
-        postal_code: ''
-      });
+      if (!initialData) {
+        setFormData({
+          name: '',
+          client_number: '',
+          poc_name: '',
+          poc_phone: '',
+          poc_email: '',
+          city: '',
+          street: '',
+          postal_code: '',
+          payment_terms: 'immediate'
+        });
+      }
     } catch (err) {
-      setError(err.response?.data?.message || 'שגיאה בהוספת הלקוח');
+      setError(err.response?.data?.message || 'שגיאה בשמירת הלקוח');
     } finally {
       setLoading(false);
     }
@@ -78,7 +104,10 @@ function AddClientForm({ onClientAdded }) {
 
   return (
     <div className="bg-white rounded-xl shadow-lg p-6 mb-6 border border-gray-200">
-      <h3 className="text-xl font-bold text-gray-800 mb-4">הוספת לקוח חדש</h3>
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-xl font-bold text-gray-800">{initialData ? 'עריכת פרטי לקוח' : 'הוספת לקוח חדש'}</h3>
+        {/* Duplicate Cancel button removed as per request */}
+      </div>
       {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">{error}</div>}
 
       <form onSubmit={handleSubmit}>
@@ -92,6 +121,17 @@ function AddClientForm({ onClientAdded }) {
               onChange={handleChange}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
+            />
+          </div>
+
+          <div>
+            <label className="block text-gray-700 font-semibold mb-2">מספר לקוח</label>
+            <input
+              type="text"
+              name="client_number"
+              value={formData.client_number}
+              onChange={handleChange}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
@@ -163,6 +203,22 @@ function AddClientForm({ onClientAdded }) {
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
+
+          <div>
+            <label className="block text-gray-700 font-semibold mb-2">תנאי תשלום</label>
+            <select
+              name="payment_terms"
+              value={formData.payment_terms}
+              onChange={handleChange}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {PAYMENT_TERMS_OPTIONS.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         <div className="mt-6 flex justify-end gap-4">
@@ -171,7 +227,7 @@ function AddClientForm({ onClientAdded }) {
             disabled={loading}
             className="bg-blue-500 text-white hover:bg-blue-600 font-bold py-2 px-6 rounded-lg disabled:bg-gray-400"
           >
-            {loading ? 'שומר...' : 'הוסף לקוח'}
+            {loading ? 'שומר...' : (initialData ? 'עדכן פרטים' : 'הוסף לקוח')}
           </button>
         </div>
       </form>
@@ -180,7 +236,3 @@ function AddClientForm({ onClientAdded }) {
 }
 
 export default AddClientForm;
-
-
-
-

@@ -63,7 +63,7 @@ const Input = ({
           <button
             type="button"
             onClick={handleClear}
-            className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+            className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-full p-1"
             aria-label="נקה"
           >
             <svg

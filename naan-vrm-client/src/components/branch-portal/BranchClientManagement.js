@@ -28,12 +28,15 @@ function BranchClientManagement({ branchId, onSaleCreated }) {
       setLoading(true);
       // Fetch clients filtered by branch (only clients with sales for this branch)
       const response = await api.get('/clients/search', {
-        params: { branchId }
+        params: { branchId, limit: 1000 } // Get enough clients for now, or implement pagination later
       });
-      const clientsData = response.data || [];
-      setClients(clientsData);
-      setAllClients(clientsData); // Store for search functionality
-      console.log('Clients loaded:', clientsData);
+      // Handle pagination response { data: [], total: ... } or fallback to array
+      const rawData = response.data;
+      const clientsList = Array.isArray(rawData) ? rawData : (rawData.data || []);
+
+      setClients(clientsList);
+      setAllClients(clientsList); // Store for search functionality
+      console.log('Clients loaded:', clientsList);
     } catch (error) {
       console.error('Error fetching clients:', error);
       setError('שגיאה בטעינת לקוחות: ' + (error.response?.data?.message || error.message));
@@ -61,10 +64,14 @@ function BranchClientManagement({ branchId, onSaleCreated }) {
         params: {
           branchId,
           criteria: searchCriteria,
-          query: searchQuery.trim()
+          query: searchQuery.trim(),
+          limit: 1000
         }
       });
-      setClients(response.data || []);
+      // Handle pagination response
+      const rawData = response.data;
+      const clientsList = Array.isArray(rawData) ? rawData : (rawData.data || []);
+      setClients(clientsList);
     } catch (error) {
       console.error('Error searching clients:', error);
       setError('שגיאה בחיפוש: ' + (error.response?.data?.message || error.message));
@@ -195,9 +202,18 @@ function BranchClientManagement({ branchId, onSaleCreated }) {
                     )}
                   </div>
 
-                  <button className="mt-3 bg-green-500 text-white px-4 py-1 rounded-lg text-sm hover:bg-green-600 w-full">
+                  <Button
+                    variant="success"
+                    size="sm"
+                    fullWidth
+                    className="mt-3"
+                    onClick={() => {
+                      setSelectedClient(client);
+                      setShowCreateSaleForm(true);
+                    }}
+                  >
                     + צור דרישת תשלום
-                  </button>
+                  </Button>
                 </div>
               ))}
             </div>

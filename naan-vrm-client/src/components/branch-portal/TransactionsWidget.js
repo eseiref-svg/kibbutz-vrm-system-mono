@@ -1,13 +1,17 @@
 import React, { useState, useEffect, forwardRef, useImperativeHandle, useCallback } from 'react';
 import api from '../../api/axiosConfig';
+import { formatCurrency } from '../../utils/formatCurrency';
 
-const TransactionsWidget = forwardRef(({ branchId, supplierTransactions }, ref) => {
+const TransactionsWidget = forwardRef(({ branchId, supplierTransactions, isBusiness = true }, ref) => {
   const [sales, setSales] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState('incoming'); // incoming or outgoing
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'desc' });
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [activeTab, setActiveTab] = useState(isBusiness ? 'incoming' : 'outgoing'); // Default based on branch type
+  const [statusFilter, setStatusFilter] = useState('open'); // Default to 'Waiting'
+
+  useEffect(() => {
+    setActiveTab(isBusiness ? 'incoming' : 'outgoing');
+  }, [isBusiness]);
 
   const fetchRecentSales = useCallback(async () => {
     if (!branchId) {
@@ -58,73 +62,45 @@ const TransactionsWidget = forwardRef(({ branchId, supplierTransactions }, ref) 
     }
   };
 
-  const formatCurrency = (value) => {
-    return `₪${parseFloat(value).toLocaleString('he-IL', { minimumFractionDigits: 2 })}`;
-  };
+  // Removed local formatCurrency
 
   const formatDate = (dateString) => {
     if (!dateString) return '-';
     return new Date(dateString).toLocaleDateString('he-IL');
   };
 
-  // Sorting function
-  const handleSort = (key) => {
-    let direction = 'asc';
-    if (sortConfig.key === key && sortConfig.direction === 'asc') {
-      direction = 'desc';
-    }
-    setSortConfig({ key, direction });
-  };
+  const getFilteredData = (data) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
-  const getSortedData = (data) => {
-    if (!sortConfig.key) return data;
-
-    return [...data].sort((a, b) => {
-      let aVal = a[sortConfig.key];
-      let bVal = b[sortConfig.key];
-
-      // Handle numeric values
-      if (sortConfig.key === 'value') {
-        aVal = parseFloat(aVal) || 0;
-        bVal = parseFloat(bVal) || 0;
+    return data.filter(item => {
+      if (statusFilter === 'paid') {
+        return item.status === 'paid';
       }
-
-      // Handle dates
-      if (sortConfig.key === 'transaction_date' || sortConfig.key === 'due_date') {
-        aVal = new Date(aVal).getTime();
-        bVal = new Date(bVal).getTime();
+      if (statusFilter === 'overdue') {
+        const dueDate = new Date(item.due_date);
+        return item.status === 'open' && dueDate < today;
       }
-
-      // Handle strings
-      if (typeof aVal === 'string') {
-        aVal = aVal.toLowerCase();
-        bVal = bVal.toLowerCase();
+      if (statusFilter === 'open') {
+        return item.status === 'open';
       }
-
-      if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
-      if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
-      return 0;
+      return true;
     });
   };
 
-  const getFilteredData = (data) => {
-    if (statusFilter === 'all') return data;
-    return data.filter(item => item.status === statusFilter);
+  const getSortedData = (data) => {
+    // Static Sort: Oldest to Newest
+    return [...data].sort((a, b) => {
+      const dateA = new Date(a.due_date || a.transaction_date).getTime();
+      const dateB = new Date(b.due_date || b.transaction_date).getTime();
+      return dateA - dateB;
+    });
   };
 
   const processedSales = getSortedData(getFilteredData(sales));
   const processedSupplierTransactions = getSortedData(getFilteredData(supplierTransactions || []));
 
-  const SortIcon = ({ columnKey }) => {
-    if (sortConfig.key !== columnKey) {
-      return <span className="text-gray-400 ml-1">⇅</span>;
-    }
-    return (
-      <span className="text-blue-600 ml-1">
-        {sortConfig.direction === 'asc' ? '↑' : '↓'}
-      </span>
-    );
-  };
+
 
   return (
     <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200 mt-6">
@@ -134,15 +110,17 @@ const TransactionsWidget = forwardRef(({ branchId, supplierTransactions }, ref) 
 
       {/* Tabs */}
       <div className="flex border-b mb-4">
-        <button
-          onClick={() => setActiveTab('incoming')}
-          className={`px-6 py-2 font-semibold transition-colors ${activeTab === 'incoming'
-            ? 'border-b-2 border-blue-500 text-blue-600'
-            : 'text-gray-600 hover:text-gray-800'
-            }`}
-        >
-          לקבל מלקוחות ({sales.length})
-        </button>
+        {isBusiness && (
+          <button
+            onClick={() => setActiveTab('incoming')}
+            className={`px-6 py-2 font-semibold transition-colors ${activeTab === 'incoming'
+              ? 'border-b-2 border-blue-500 text-blue-600'
+              : 'text-gray-600 hover:text-gray-800'
+              }`}
+          >
+            לקבל מלקוחות ({sales.length})
+          </button>
+        )}
         <button
           onClick={() => setActiveTab('outgoing')}
           className={`px-6 py-2 font-semibold transition-colors ${activeTab === 'outgoing'
@@ -162,12 +140,9 @@ const TransactionsWidget = forwardRef(({ branchId, supplierTransactions }, ref) 
           onChange={(e) => setStatusFilter(e.target.value)}
           className="px-3 py-1 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
-          <option value="all">הכל</option>
-          <option value="pending_approval">ממתין לאישור</option>
-          <option value="open">אושר - ממתין לתשלום</option>
+          <option value="open">ממתין לתשלום</option>
           <option value="paid">שולם</option>
-          <option value="approved">מאושר</option>
-          <option value="pending">ממתין</option>
+          <option value="overdue">ממתין לתשלום - באיחור</option>
         </select>
       </div>
 
@@ -187,43 +162,11 @@ const TransactionsWidget = forwardRef(({ branchId, supplierTransactions }, ref) 
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="bg-gray-100">
-                  <th
-                    className="py-2 px-3 text-right font-semibold cursor-pointer hover:bg-gray-200"
-                    onClick={() => handleSort('client_name')}
-                  >
-                    <span className="flex items-center justify-end">
-                      לקוח
-                      <SortIcon columnKey="client_name" />
-                    </span>
-                  </th>
+                  <th className="py-2 px-3 text-right font-semibold">לקוח</th>
                   <th className="py-2 px-3 text-right font-semibold">מספר לקוח</th>
-                  <th
-                    className="py-2 px-3 text-right font-semibold cursor-pointer hover:bg-gray-200"
-                    onClick={() => handleSort('value')}
-                  >
-                    <span className="flex items-center justify-end">
-                      סכום
-                      <SortIcon columnKey="value" />
-                    </span>
-                  </th>
-                  <th
-                    className="py-2 px-3 text-right font-semibold cursor-pointer hover:bg-gray-200"
-                    onClick={() => handleSort('transaction_date')}
-                  >
-                    <span className="flex items-center justify-end">
-                      תאריך עסקה
-                      <SortIcon columnKey="transaction_date" />
-                    </span>
-                  </th>
-                  <th
-                    className="py-2 px-3 text-right font-semibold cursor-pointer hover:bg-gray-200"
-                    onClick={() => handleSort('status')}
-                  >
-                    <span className="flex items-center justify-end">
-                      סטטוס
-                      <SortIcon columnKey="status" />
-                    </span>
-                  </th>
+                  <th className="py-2 px-3 text-right font-semibold">סכום</th>
+                  <th className="py-2 px-3 text-right font-semibold">תאריך עסקה</th>
+                  <th className="py-2 px-3 text-right font-semibold">סטטוס</th>
                 </tr>
               </thead>
               <tbody>
@@ -268,42 +211,10 @@ const TransactionsWidget = forwardRef(({ branchId, supplierTransactions }, ref) 
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="bg-gray-100">
-                  <th
-                    className="py-2 px-3 text-right font-semibold cursor-pointer hover:bg-gray-200"
-                    onClick={() => handleSort('supplier_name')}
-                  >
-                    <span className="flex items-center justify-end">
-                      ספק
-                      <SortIcon columnKey="supplier_name" />
-                    </span>
-                  </th>
-                  <th
-                    className="py-2 px-3 text-right font-semibold cursor-pointer hover:bg-gray-200"
-                    onClick={() => handleSort('due_date')}
-                  >
-                    <span className="flex items-center justify-end">
-                      תאריך יעד
-                      <SortIcon columnKey="due_date" />
-                    </span>
-                  </th>
-                  <th
-                    className="py-2 px-3 text-right font-semibold cursor-pointer hover:bg-gray-200"
-                    onClick={() => handleSort('value')}
-                  >
-                    <span className="flex items-center justify-end">
-                      סכום
-                      <SortIcon columnKey="value" />
-                    </span>
-                  </th>
-                  <th
-                    className="py-2 px-3 text-right font-semibold cursor-pointer hover:bg-gray-200"
-                    onClick={() => handleSort('status')}
-                  >
-                    <span className="flex items-center justify-end">
-                      סטטוס
-                      <SortIcon columnKey="status" />
-                    </span>
-                  </th>
+                  <th className="py-2 px-3 text-right font-semibold">ספק</th>
+                  <th className="py-2 px-3 text-right font-semibold">תאריך יעד</th>
+                  <th className="py-2 px-3 text-right font-semibold">סכום</th>
+                  <th className="py-2 px-3 text-right font-semibold">סטטוס</th>
                 </tr>
               </thead>
               <tbody>

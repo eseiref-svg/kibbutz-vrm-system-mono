@@ -1,4 +1,5 @@
 import React from 'react';
+import { formatCurrency } from '../../utils/formatCurrency';
 
 const TransactionDetailsModal = ({ transaction, isOpen, onClose }) => {
   if (!isOpen || !transaction) return null;
@@ -7,12 +8,7 @@ const TransactionDetailsModal = ({ transaction, isOpen, onClose }) => {
     return new Date(dateString).toLocaleDateString('he-IL');
   };
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('he-IL', {
-      style: 'currency',
-      currency: 'ILS'
-    }).format(amount);
-  };
+  // Removed local formatCurrency
 
   const getStatusBadge = (transaction) => {
     if (transaction.days_overdue > 0) {

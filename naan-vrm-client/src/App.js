@@ -119,12 +119,12 @@ function Header() {
             <nav className="flex flex-col p-4 space-y-3">
               <LinkItem to="/">לוח מחוונים</LinkItem>
               <LinkItem to="/payments">מעקב תשלומים</LinkItem>
-              <LinkItem to="/suppliers">ניהול ספקים</LinkItem>
-              <LinkItem to="/clients">ניהול לקוחות</LinkItem>
               <LinkItem to="/reports">דוחות</LinkItem>
+              <LinkItem to="/suppliers">ניהול ספקים</LinkItem>
               <LinkItem to="/tag-management">ניהול תגים</LinkItem>
-              <LinkItem to="/user-management">ניהול משתמשים</LinkItem>
+              <LinkItem to="/clients">ניהול לקוחות</LinkItem>
               <LinkItem to="/branches">ניהול ענפים</LinkItem>
+              <LinkItem to="/user-management">ניהול משתמשים</LinkItem>
               <LinkItem to="/notifications-history">היסטוריית התראות</LinkItem>
             </nav>
           </div>

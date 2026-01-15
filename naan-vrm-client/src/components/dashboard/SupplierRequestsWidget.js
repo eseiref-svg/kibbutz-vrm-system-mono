@@ -55,43 +55,41 @@ function SupplierRequestsWidget({ requests, onUpdateRequest, onApproveRequest })
     <div id="supplier-requests-widget" className="bg-white rounded-xl shadow-lg p-6 border border-gray-200 mt-8">
       <h3 className="text-xl font-bold text-gray-800 mb-4 border-b pb-2">בקשות ספקים חדשים להוספה</h3>
       <div className="overflow-x-auto">
-        <table className="min-w-full text-sm">
-          <thead>
-            <tr className="bg-gray-100">
-              <th className="py-2 px-3 text-right font-semibold">שם הספק</th>
-              <th className="py-2 px-3 text-right font-semibold">הוגש על ידי</th>
-              <th className="py-2 px-3 text-right font-semibold">ענף</th>
-              <th className="py-2 px-3 text-right font-semibold">תאריך</th>
-              <th className="py-2 px-3 text-center font-semibold">פעולות</th>
+        <table className="min-w-full divide-y divide-gray-200 table-fixed">
+          <thead className="bg-gray-50">
+            <tr>
+              <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-[25%]">שם הספק</th>
+              <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">הוגש על ידי</th>
+              <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">ענף</th>
+              <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">תאריך</th>
+              <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-[160px]">פעולות</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="bg-white divide-y divide-gray-200">
             {requests.map(req => (
               <tr
                 key={req.supplier_req_id}
-                className="border-b hover:bg-gray-50 cursor-pointer transition-colors"
+                className="hover:bg-gray-50 transition-colors cursor-pointer"
                 onClick={() => handleRowClick(req)}
               >
-                <td className="py-2 px-3">{req.supplier_name}</td>
-                <td className="py-2 px-3">{req.requested_by}</td>
-                <td className="py-2 px-3">{req.branch_name}</td>
-                <td className="py-2 px-3">{new Date(req.created_at).toLocaleDateString('he-IL')}</td>
-                <td className="py-2 px-3">
-                  <div className="flex justify-center gap-2" onClick={(e) => e.stopPropagation()}>
-                    <Button
-                      size="sm"
-                      variant="success"
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">{req.supplier_name}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{req.requested_by}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{req.branch_name}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(req.created_at).toLocaleDateString('he-IL')}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium w-[160px]">
+                  <div className="flex justify-center items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                    <button
                       onClick={() => onApproveRequest(req)}
+                      className="border border-green-200 bg-green-50 text-green-700 hover:bg-green-100 hover:border-green-300 px-3 py-1 rounded transition-colors text-xs"
                     >
                       אשר
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="danger"
+                    </button>
+                    <button
                       onClick={() => handleReject(req.supplier_req_id)}
+                      className="border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 hover:border-red-300 px-3 py-1 rounded transition-colors text-xs"
                     >
                       דחה
-                    </Button>
+                    </button>
                   </div>
                 </td>
               </tr>

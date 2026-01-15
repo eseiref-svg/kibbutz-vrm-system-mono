@@ -4,6 +4,8 @@ import Button from '../components/shared/Button';
 import Modal from '../components/shared/Modal';
 import Input from '../components/shared/Input';
 import Select from '../components/shared/Select';
+import BranchDetailsCard from '../components/branch-management/BranchDetailsCard';
+import BranchTable from '../components/branch-management/BranchTable';
 
 function BranchManagementPage() {
     const [branches, setBranches] = useState([]);
@@ -32,8 +34,7 @@ function BranchManagementPage() {
 
     const fetchUsers = async () => {
         try {
-            const res = await api.get('/users'); // Assuming we have this endpoint now
-            // Filter for potential managers if needed, or show all
+            const res = await api.get('/users');
             setUsers(res.data.filter(u => u.status === 'active'));
         } catch (err) {
             console.error(err);
@@ -78,6 +79,30 @@ function BranchManagementPage() {
         }
     };
 
+    const handleStatusToggle = async (branch) => {
+        if (!window.confirm(`האם אתה בטוח שברצונך ${branch.is_active ? 'להשבית' : 'להפעיל'} את הענף '${branch.name}'?`)) {
+            return;
+        }
+
+        try {
+            const updatedBranch = { ...branch, is_active: !branch.is_active };
+            await api.put(`/branches/${branch.branch_id}`, {
+                name: branch.name,
+                business: branch.business,
+                manager_id: branch.manager_id,
+                is_active: !branch.is_active
+            });
+            fetchBranches();
+            // If viewing details card, update it too
+            if (currentBranch && currentBranch.branch_id === branch.branch_id) {
+                setCurrentBranch(prev => ({ ...prev, is_active: !prev.is_active }));
+            }
+        } catch (err) {
+            console.error(err);
+            alert('שגיאה בעדכון סטטוס הענף');
+        }
+    };
+
     return (
         <div>
             <div className="flex justify-between items-center mb-6 border-b pb-4">
@@ -91,38 +116,25 @@ function BranchManagementPage() {
             {error && <p className="text-red-500">{error}</p>}
 
             {!loading && !error && (
-                <div className="bg-white rounded-xl shadow border overflow-hidden">
-                    <table className="min-w-full text-sm">
-                        <thead className="bg-gray-100 border-b">
-                            <tr>
-                                <th className="py-3 px-4 text-right font-semibold">שם הענף</th>
-                                <th className="py-3 px-4 text-right font-semibold">סוג ענף</th>
-                                <th className="py-3 px-4 text-right font-semibold">מנהל אחראי</th>
-                                <th className="py-3 px-4 text-right font-semibold">פעולות</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {branches.map(branch => (
-                                <tr key={branch.branch_id} className="border-b hover:bg-gray-50">
-                                    <td className="py-3 px-4 font-medium">{branch.name}</td>
-                                    <td className="py-3 px-4">
-                                        {branch.business ? (
-                                            <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">עסקי</span>
-                                        ) : (
-                                            <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">קהילתי</span>
-                                        )}
-                                    </td>
-                                    <td className="py-3 px-4">
-                                        {branch.manager_name || <span className="text-gray-400">- ללא -</span>}
-                                    </td>
-                                    <td className="py-3 px-4">
-                                        <Button size="sm" variant="outline" onClick={() => handleOpenModal(branch)}>ערוך</Button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
+                <>
+                    {currentBranch && !isEditing && !isModalOpen ? (
+                        <div className="py-6">
+                            <BranchDetailsCard
+                                branch={currentBranch}
+                                onBack={() => setCurrentBranch(null)}
+                                onEdit={() => handleOpenModal(currentBranch)}
+                                onStatusToggle={() => handleStatusToggle(currentBranch)}
+                            />
+                        </div>
+                    ) : (
+                        <BranchTable
+                            branches={branches}
+                            onEdit={handleOpenModal}
+                            onStatusToggle={handleStatusToggle}
+                            onRowClick={setCurrentBranch}
+                        />
+                    )}
+                </>
             )}
 
             <Modal
@@ -171,7 +183,6 @@ function BranchManagementPage() {
                     </div>
                 )}
             </Modal>
-
         </div>
     );
 }

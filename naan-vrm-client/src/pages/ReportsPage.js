@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import api from '../api/axiosConfig';
+import { formatCurrency } from '../utils/formatCurrency';
 import AnnualCashFlowChart from '../components/reports/AnnualCashFlowChart';
 import Button from '../components/shared/Button';
 import Select from '../components/shared/Select';
@@ -116,8 +117,8 @@ function ReportsPage() {
         startY: 135,
         head: [['הוצאות (ש"ח)', 'הכנסות (ש"ח)', 'חודש']],
         body: reportData.map(row => [
-          Math.abs(parseFloat(row.expense)).toLocaleString('he-IL'),
-          parseFloat(row.income).toLocaleString('he-IL'),
+          formatCurrency(row.expense),
+          formatCurrency(row.income),
           new Date(row.month + '-01').toLocaleDateString('he-IL', { month: 'long' }),
         ]).reverse(),
         styles: { font: "Arial", halign: 'right' },
@@ -204,13 +205,13 @@ function ReportsPage() {
                     {row.branch_name}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-bold">
-                    ₪{parseFloat(row.total_income || 0).toLocaleString()}
+                    {formatCurrency(row.total_income)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600 font-bold">
-                    ₪{parseFloat(row.total_expense || 0).toLocaleString()}
+                    {formatCurrency(row.total_expense)}
                   </td>
                   <td className={`px-6 py-4 whitespace-nowrap text-sm font-bold ${profitColor}`}>
-                    ₪{profit.toLocaleString()}
+                    {formatCurrency(profit)}
                   </td>
                 </tr>
               );

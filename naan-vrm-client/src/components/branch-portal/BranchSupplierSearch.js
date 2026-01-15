@@ -24,7 +24,6 @@ function BranchSupplierSearch({ query, setQuery, criteria, setCriteria, onSearch
       <div className="flex flex-col sm:flex-row gap-3 items-stretch">
         <Select
           value={criteria}
-          label="סוג חיפוש"
           onChange={(e) => setCriteria(e.target.value)}
           options={[
             { value: 'name', label: 'לפי שם' },
@@ -42,8 +41,8 @@ function BranchSupplierSearch({ query, setQuery, criteria, setCriteria, onSearch
           showClearButton={true}
           onClear={handleClear}
         />
-        <Button 
-          variant="primary" 
+        <Button
+          variant="primary"
           onClick={onSearch}
           className="whitespace-nowrap sm:w-auto w-full"
         >

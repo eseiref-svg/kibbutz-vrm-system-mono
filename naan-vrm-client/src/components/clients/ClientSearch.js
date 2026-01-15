@@ -7,8 +7,8 @@ function ClientSearch({ query, setQuery, criteria, setCriteria, onSearch }) {
       <div className="flex gap-4 items-end">
         <div className="flex-1">
           <label className="block text-gray-700 font-semibold mb-2">מונח חיפוש</label>
-          <input 
-            type="text" 
+          <input
+            type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && onSearch()}
@@ -18,16 +18,17 @@ function ClientSearch({ query, setQuery, criteria, setCriteria, onSearch }) {
         </div>
         <div className="w-48">
           <label className="block text-gray-700 font-semibold mb-2">חפש לפי</label>
-          <select 
+          <select
             value={criteria}
             onChange={(e) => setCriteria(e.target.value)}
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="name">שם לקוח</option>
             <option value="id">מספר לקוח</option>
+            <option value="branch">שם ענף</option>
           </select>
         </div>
-        <button 
+        <button
           onClick={onSearch}
           className="bg-blue-500 text-white hover:bg-blue-600 font-bold py-2 px-6 rounded-lg"
         >

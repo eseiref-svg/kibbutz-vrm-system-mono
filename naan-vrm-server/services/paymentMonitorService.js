@@ -171,7 +171,8 @@ class PaymentMonitorService {
       return true;
     }
 
-    if (daysUntilDue < 0) {
+    // Updated Logic: Only alert once on the first day of delay (Day -1)
+    if (daysUntilDue === -1) {
 
       return true;
     }

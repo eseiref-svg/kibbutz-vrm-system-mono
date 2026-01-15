@@ -30,11 +30,14 @@ class AlertService {
   }
 
   determineSeverity(daysUntilDue) {
-    if (daysUntilDue < -30) return 'critical';
-    if (daysUntilDue < -7) return 'high';
-    if (daysUntilDue < 0) return 'medium';
+    // Logic updated to match simplified user requirements:
+    // Future (>7): low
+    // Upcoming (1-7): low
+    // Today (0): medium
+    // Overdue (<0): critical (Red)
+
+    if (daysUntilDue < 0) return 'critical';
     if (daysUntilDue === 0) return 'medium';
-    if (daysUntilDue <= 7) return 'low';
     return 'low';
   }
 

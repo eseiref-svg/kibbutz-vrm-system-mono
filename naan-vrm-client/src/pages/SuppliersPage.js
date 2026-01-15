@@ -5,27 +5,27 @@ import SupplierSearch from '../components/suppliers/SupplierSearch';
 import SupplierDetailsCard from '../components/suppliers/SupplierDetailsCard';
 import UnifiedSupplierForm from '../components/shared/UnifiedSupplierForm';
 import Button from '../components/shared/Button';
-import Modal from '../components/shared/Modal';
-import Input from '../components/shared/Input';
-import Select from '../components/shared/Select';
-import { validatePhoneNumber } from '../utils/validation';
 
 function SuppliersPage() {
   const [suppliers, setSuppliers] = useState([]);
-  const [supplierFields, setSupplierFields] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchCriteria, setSearchCriteria] = useState('name');
   const [loading, setLoading] = useState(true);
   const [selectedSupplier, setSelectedSupplier] = useState(null);
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  const [currentUser, setCurrentUser] = useState(null);
-  const [errors, setErrors] = useState({});
+
+  // Unified Form State for Add/Edit
+  const [showUnifiedForm, setShowUnifiedForm] = useState(false);
+  const [editingSupplier, setEditingSupplier] = useState(null); // If set, we are editing. If null, adding.
 
   const fetchSuppliers = (criteria = '', query = '') => {
     setLoading(true);
+    // User requested only APPROVED suppliers in the table.
     api.get(`/suppliers/search`, {
-      params: { criteria: criteria.trim(), query: query.trim() }
+      params: {
+        criteria: criteria.trim(),
+        query: query.trim(),
+        status: 'approved' // Strict filter
+      }
     })
       .then(response => {
         setSuppliers(response.data);
@@ -38,15 +38,8 @@ function SuppliersPage() {
       });
   };
 
-  const fetchSupplierFields = () => {
-    api.get('/supplier-fields')
-      .then(response => setSupplierFields(response.data))
-      .catch(error => console.error("Error fetching supplier fields", error));
-  };
-
   useEffect(() => {
     fetchSuppliers();
-    fetchSupplierFields();
   }, []);
 
   const handleSearch = () => {
@@ -58,102 +51,114 @@ function SuppliersPage() {
     fetchSuppliers('', '');
   };
 
-  const handleSupplierAdded = () => {
-    fetchSuppliers();
-    setShowAddForm(false);
+  const handleFormSuccess = async (data) => {
+    fetchSuppliers(); // Refresh list
+    setShowUnifiedForm(false);
+
+    // If editing and creating, api usually returns the new/updated object.
+    // Ideally update standard view if selected.
+    if (editingSupplier && selectedSupplier && selectedSupplier.supplier_id === data.supplier_id) {
+      // We might need to fetch fresh details if "data" from form isn't complete (e.g. joined fields)
+      // But let's assume form returns enough or we force refresh if needed.
+      // Actually, form calls 'onSubmit' then 'api.post/put'. 
+      // Our UnifiedForm handles the POST call itself if mode!=treasurer, OR calls onSubmit prop.
+      // In Treasurer mode (default), UnifiedForm calls onSubmit(payload). It does NOT call API internally in that mode?
+      // Wait, looking at UnifiedForm refactor:
+      // if (mode === 'branch_manager') await api.post...
+      // else await onSubmit(payload)
+      // So HERE in Treasurer mode, we must implement the API call.
+
+      // Wait, let's fix UnifiedForm usage:
+      // UnifiedForm: "In Treasurer mode... handled by parent typically... or we pass payload."
+      // Let's implement the API calls here for clarity.
+    }
   };
 
-  const handleDeleteSupplier = async (id) => {
-    if (window.confirm(`האם אתה בטוח שברצונך להעביר לארכיון את ספק מספר ${id}?`)) {
+  const handleTreasurerSubmit = async (payload) => {
+    try {
+      if (editingSupplier) {
+        const res = await api.put(`/suppliers/${editingSupplier.supplier_id}`, payload);
+        if (selectedSupplier && selectedSupplier.supplier_id === editingSupplier.supplier_id) {
+          setSelectedSupplier(res.data);
+        }
+        alert('הספק עודכן בהצלחה');
+      } else {
+        await api.post('/suppliers', payload);
+        alert('הספק נוצר בהצלחה');
+      }
+      fetchSuppliers();
+      setShowUnifiedForm(false);
+    } catch (e) {
+      console.error("Error saving supplier:", e);
+      alert('שגיאה בשמירת הספק: ' + (e.response?.data?.message || e.message));
+    }
+  };
+
+
+  const handleStatusToggle = async (supplier) => {
+    const newStatus = !(supplier.is_active !== false); // Toggle
+    const actionName = newStatus ? 'להפעיל' : 'להשבית';
+
+    if (window.confirm(`האם אתה בטוח שברצונך ${actionName} את ספק מספר ${supplier.supplier_id}?`)) {
       try {
-        await api.delete(`/suppliers/${id}`);
+        await api.put(`/suppliers/${supplier.supplier_id}`, {
+          ...supplier,
+          is_active: newStatus
+        });
         fetchSuppliers();
-        alert('הספק הועבר לארכיון בהצלחה');
       } catch (error) {
-        console.error('Error deleting supplier:', error);
+        console.error('Error updating supplier status:', error);
         alert('הפעולה נכשלה.');
       }
     }
   };
 
-  const handleEditChange = (e) => {
-    const { name, value } = e.target;
-    setCurrentUser(prev => ({ ...prev, [name]: value }));
-    if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: '' }));
-    }
+  const openAddForm = () => {
+    setEditingSupplier(null);
+    setShowUnifiedForm(true);
   };
 
-  const handleEditClick = (supplier) => {
-    setCurrentUser(supplier);
-    setErrors({});
-    setIsEditing(true);
+  const openEditForm = (supplier) => {
+    setEditingSupplier(supplier);
+    setShowUnifiedForm(true);
   };
-
-  const handleUpdateSupplier = async () => {
-    if (!currentUser) return;
-
-    // Validation
-    const phoneValidation = validatePhoneNumber(currentUser.poc_phone);
-    if (!phoneValidation.isValid) {
-      setErrors({ poc_phone: phoneValidation.error });
-      return;
-    }
-
-    try {
-      const response = await api.put(`/suppliers/${currentUser.supplier_id}`, currentUser);
-      fetchSuppliers();
-      setIsEditing(false);
-      if (selectedSupplier && selectedSupplier.supplier_id === currentUser.supplier_id) {
-        setSelectedSupplier(response.data);
-      }
-      setCurrentUser(null);
-      alert('הספק עודכן בהצלחה');
-    } catch (error) {
-      console.error('Error updating supplier:', error);
-      alert('נכשל בעדכון הספק.');
-    }
-  };
-
-
 
   return (
     <div>
-      <div className="flex flex-col md:flex-row justify-between items-center mb-6 pb-4 border-b-2 border-gray-200 gap-4">
+      <div className="flex flex-col md:flex-row justify-between items-center mb-6 pb-4 border-b border-gray-200 gap-4">
         <h2 className="text-2xl md:text-3xl font-bold text-gray-800">ניהול ספקים</h2>
         {!selectedSupplier && (
           <Button
             variant="success"
-            onClick={() => setShowAddForm(!showAddForm)}
+            onClick={openAddForm}
             className="w-full md:w-auto"
           >
-            {showAddForm ? 'הסתר טופס' : 'הוסף ספק חדש'}
+            הוסף ספק חדש
           </Button>
         )}
       </div>
 
-      {showAddForm && (
+      {showUnifiedForm && (
         <UnifiedSupplierForm
-          open={showAddForm}
-          onClose={() => setShowAddForm(false)}
-          onSubmit={async (data) => {
-            try {
-              await api.post('/suppliers', data);
-              handleSupplierAdded();
-            } catch (e) {
-              alert('שגיאה בהוספת הספק: ' + (e.response?.data?.message || e.message));
-            }
-          }}
+          open={showUnifiedForm}
+          onClose={() => setShowUnifiedForm(false)}
+          onSubmit={handleTreasurerSubmit}
+          initialData={editingSupplier}
           mode="treasurer"
-          submitLabel="שמור ספק"
+          submitLabel={editingSupplier ? "עדכן ספק" : "שמור ספק"}
         />
       )}
 
       {selectedSupplier ? (
         <SupplierDetailsCard
           supplier={selectedSupplier}
-          onBackToList={() => setSelectedSupplier(null)}
-          onEdit={handleEditClick}
+          mode="treasurer"
+          onBackToList={() => {
+            setSelectedSupplier(null);
+            fetchSuppliers(searchCriteria, searchQuery);
+          }}
+          onEdit={openEditForm}
+          onStatusToggle={() => handleStatusToggle(selectedSupplier)}
         />
       ) : (
         <>
@@ -171,75 +176,15 @@ function SuppliersPage() {
             ) : (
               <SuppliersTable
                 suppliers={suppliers}
-                onDelete={handleDeleteSupplier}
-                onEdit={handleEditClick}
+                mode="treasurer"
+                onDeactivate={handleStatusToggle}
+                onEdit={openEditForm}
                 onRowClick={setSelectedSupplier}
               />
             )}
           </div>
         </>
       )}
-
-      <Modal
-        isOpen={isEditing}
-        onClose={() => setIsEditing(false)}
-        title="עריכת ספק"
-        size="md"
-        footer={
-          <>
-            <Button variant="outline" onClick={() => setIsEditing(false)}>ביטול</Button>
-            <Button variant="primary" onClick={handleUpdateSupplier}>שמור שינויים</Button>
-          </>
-        }
-      >
-        {currentUser && (
-          <div className="space-y-4">
-            <Input
-              label="שם הספק"
-              name="name"
-              value={currentUser.name || ''}
-              onChange={handleEditChange}
-            />
-            <Input
-              label="איש קשר"
-              name="poc_name"
-              value={currentUser.poc_name || ''}
-              onChange={handleEditChange}
-            />
-            <Input
-              label="טלפון"
-              name="poc_phone"
-              value={currentUser.poc_phone || ''}
-              onChange={handleEditChange}
-              error={errors.poc_phone}
-              helperText="נייד (10 ספרות) או נייח (9 ספרות)"
-            />
-            <Input
-              label="אימייל"
-              type="email"
-              name="poc_email"
-              value={currentUser.poc_email || ''}
-              onChange={handleEditChange}
-            />
-            <Select
-              name="supplier_field_id"
-              label="תחום ספק"
-              value={currentUser.supplier_field_id || ''}
-              onChange={handleEditChange}
-              options={supplierFields.map(field => ({
-                value: field.supplier_field_id,
-                label: field.field
-              }))}
-            />
-            <Input
-              label="סטטוס"
-              name="status"
-              value={currentUser.status || ''}
-              onChange={handleEditChange}
-            />
-          </div>
-        )}
-      </Modal>
     </div>
   );
 }

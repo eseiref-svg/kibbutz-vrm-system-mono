@@ -147,12 +147,15 @@ function TagManagementPage() {
                     <p className="text-gray-600">
                       <strong>תגים:</strong> {field.tags && field.tags.length > 0 ? field.tags.join(', ') : 'אין תגים'}
                     </p>
-                    <button
-                      onClick={() => handleEditClick(field)}
-                      className="text-blue-600 hover:underline mt-2 text-sm font-medium"
-                    >
-                      ערוך תגים
-                    </button>
+                    <div className="mt-3">
+                      <Button
+                        onClick={() => handleEditClick(field)}
+                        variant="outline"
+                        size="sm"
+                      >
+                        ערוך תגים
+                      </Button>
+                    </div>
                   </div>
                 )}
               </div>

@@ -76,7 +76,196 @@ const initDbResult = db.query(`
   );
 `).catch(err => console.error('Error creating system_settings table:', err));
 
-// --- System Settings API ---
+// --- MIGRATION: Ensure client table has is_active and payment_terms ---
+db.query(`
+  ALTER TABLE client 
+  ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE,
+  ADD COLUMN IF NOT EXISTS payment_terms VARCHAR(50) DEFAULT 'immediate';
+
+  ALTER TABLE supplier
+  ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+
+  ALTER TABLE branch
+  ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+`).then(() => console.log('Migration: Checked/Added columns to client, supplier, and branch tables'))
+  .catch(err => console.error('Migration Error:', err));
+
+// ... (existing system settings code) ... // No change needed here, just context
+
+// ... (later in the file) ...
+
+app.put('/api/suppliers/:id', async (req, res) => {
+  const client = await db.pool.connect();
+  try {
+    const { id } = req.params;
+    const { name, poc_name, poc_phone, poc_email, status, supplier_field_id, street, street_name, house_no, city, zip_code, is_active } = req.body;
+
+    await client.query('BEGIN');
+
+    // Get current supplier to check address_id
+    const currentSupplier = await client.query('SELECT address_id FROM supplier WHERE supplier_id = $1', [id]);
+
+    if (currentSupplier.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ message: "Supplier not found" });
+    }
+
+    let addressId = currentSupplier.rows[0].address_id;
+    const addressData = { street: street || street_name, house_no, city, zip_code };
+
+    if (addressId) {
+      await addressHelper.updateAddress(client, addressId, addressData);
+    } else {
+      addressId = await addressHelper.createAddress(client, addressData);
+    }
+
+    // Dynamic update query
+    let updateFields = [];
+    let params = [];
+    let paramIndex = 1;
+
+    const addField = (field, value) => {
+      if (value !== undefined) {
+        updateFields.push(`${field} = $${paramIndex}`);
+        params.push(value);
+        paramIndex++;
+      }
+    };
+
+    addField('name', name);
+    addField('poc_name', poc_name);
+    addField('poc_phone', poc_phone);
+    addField('poc_email', poc_email);
+    addField('status', status);
+    addField('supplier_field_id', supplier_field_id);
+    addField('address_id', addressId);
+    addField('is_active', is_active);
+
+    if (updateFields.length === 0) {
+      await client.query('ROLLBACK');
+      return res.json(currentSupplier.rows[0]); // Nothing to update
+    }
+
+    params.push(id);
+    const query = `UPDATE supplier SET ${updateFields.join(', ')} WHERE supplier_id = $${paramIndex} RETURNING *`;
+
+    // Fallback to static if simple (but dynamic is safer for optional partial updates)
+    // Actually, let's keep it simple and safe. The original code required all fields. 
+    // `is_active` might be sent alone for toggle.
+
+    const updateSupplier = await client.query(query, params);
+
+    await client.query('COMMIT');
+    res.json(updateSupplier.rows[0]);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error(err.message);
+    res.status(500).send('Server Error');
+  } finally {
+    client.release();
+  }
+});
+
+// ... (existing system settings code) ...
+
+// ... (in POST /api/clients) ...
+app.post('/api/clients', async (req, res) => {
+  const client = await db.pool.connect();
+  try {
+    const { name, poc_name, poc_phone, poc_email, city, street_name, house_no, zip_code, payment_terms } = req.body;
+
+    if (!name || !poc_name || !poc_phone) {
+      return res.status(400).json({ message: 'שם הלקוח, שם איש הקשר וטלפון הם שדות חובה' });
+    }
+
+    await client.query('BEGIN');
+
+    // Insert address using helper
+    const addressId = await addressHelper.createAddress(client, {
+      city: city || 'לא צוין',
+      street_name: street_name || 'לא צוין',
+      house_no: house_no || 'לא צוין',
+      zip_code: zip_code || '0000000',
+      phone_no: poc_phone,
+      additional: ''
+    });
+
+    // Insert client
+    const result = await client.query(
+      `INSERT INTO client (name, address_id, poc_name, poc_phone, poc_email, is_active, payment_terms) 
+       VALUES ($1, $2, $3, $4, $5, TRUE, $6) RETURNING *`,
+      [name, addressId, poc_name, poc_phone, poc_email || null, payment_terms || 'immediate']
+    );
+
+    await client.query('COMMIT');
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error(err.message);
+    res.status(500).send('Server Error');
+  } finally {
+    client.release();
+  }
+});
+
+// Update client
+app.put('/api/clients/:id', async (req, res) => {
+  const client = await db.pool.connect();
+  try {
+    const { id } = req.params;
+    const { name, poc_name, poc_phone, poc_email, city, street_name, house_no, zip_code, is_active, payment_terms } = req.body;
+
+    await client.query('BEGIN');
+
+    // Get current client to check address_id
+    const currentClient = await client.query('SELECT address_id FROM client WHERE client_id = $1', [id]);
+    if (currentClient.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ message: 'Client not found' });
+    }
+
+    let addressId = currentClient.rows[0].address_id;
+
+    // Update address (address_id should always exist since it's NOT NULL)
+    if (addressId) {
+      await addressHelper.updateAddress(client, addressId, {
+        city, street_name, house_no, zip_code, phone_no: poc_phone
+      });
+    }
+
+    // Build Update Query dynamic to handle optional fields
+    let updateQuery = `UPDATE client SET name = $1, poc_name = $2, poc_phone = $3, poc_email = $4`
+    const params = [name, poc_name, poc_phone, poc_email];
+    let paramIndex = 5;
+
+    if (is_active !== undefined) {
+      updateQuery += `, is_active = $${paramIndex}`;
+      params.push(is_active);
+      paramIndex++;
+    }
+
+    if (payment_terms !== undefined) {
+      updateQuery += `, payment_terms = $${paramIndex}`;
+      params.push(payment_terms);
+      paramIndex++;
+    }
+
+    updateQuery += ` WHERE client_id = $${paramIndex} RETURNING *`;
+    params.push(id);
+
+    // Update client
+    const result = await client.query(updateQuery, params);
+
+    await client.query('COMMIT');
+    res.json(result.rows[0]);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error(err.message);
+    res.status(500).send('Server Error');
+  } finally {
+    client.release();
+  }
+});
 
 // Get bank balance
 app.get('/api/dashboard/bank-balance', auth, async (req, res) => {
@@ -286,14 +475,34 @@ app.post('/api/users/login', async (req, res) => {
     if (!isMatch) {
       return res.status(400).json({ message: 'פרטי ההתחברות שגויים' });
     }
-    const payload = { user: { id: user.user_id, role: user.role } };
+
+    // Get Branch Business Type
+    let isBusiness = true; // Default to true (standard view)
+    if (user.role === 'branch_manager' || user.role === 'community_manager') {
+      const branchRes = await db.query('SELECT business FROM branch WHERE manager_id = $1', [user.user_id]);
+      if (branchRes.rows.length > 0) {
+        isBusiness = branchRes.rows[0].business;
+      }
+      // If community_manager but business is NULL/True? Rely on DB. 
+      // Usually Community Manager manages Community Branch (business=false).
+    }
+
+    const payload = { user: { id: user.user_id, role: user.role, branch_business: isBusiness } };
     jwt.sign(
       payload,
       process.env.JWT_SECRET,
       { expiresIn: '24h' },
       (err, token) => {
         if (err) throw err;
-        res.json({ token, user: { id: user.user_id, role: user.role, name: user.first_name } });
+        res.json({
+          token,
+          user: {
+            id: user.user_id,
+            role: user.role,
+            name: user.first_name,
+            branch_business: isBusiness
+          }
+        });
       }
     );
   } catch (err) {
@@ -432,7 +641,7 @@ app.post('/api/branches', auth, async (req, res) => {
 
       // Create Branch
       const result = await client.query(
-        'INSERT INTO branch (name, business, manager_id, balance_id) VALUES ($1, $2, $3, $4) RETURNING *',
+        'INSERT INTO branch (name, business, manager_id, balance_id, is_active) VALUES ($1, $2, $3, $4, TRUE) RETURNING *',
         [name, business || false, manager_id || null, balanceId]
       );
 
@@ -454,13 +663,24 @@ app.post('/api/branches', auth, async (req, res) => {
 app.put('/api/branches/:id', auth, async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, business, manager_id } = req.body;
+    const { name, business, manager_id, is_active } = req.body;
 
     // Build update query dynamically or static
-    const result = await db.query(
-      `UPDATE branch SET name = $1, business = $2, manager_id = $3 WHERE branch_id = $4 RETURNING *`,
-      [name, business, manager_id || null, id]
-    );
+    // Handle is_active update if present
+    let query = `UPDATE branch SET name = $1, business = $2, manager_id = $3`;
+    const params = [name, business, manager_id || null];
+    let paramIndex = 4;
+
+    if (is_active !== undefined) {
+      query += `, is_active = $${paramIndex}`;
+      params.push(is_active);
+      paramIndex++;
+    }
+
+    query += ` WHERE branch_id = $${paramIndex} RETURNING *`;
+    params.push(id);
+
+    const result = await db.query(query, params);
 
     if (result.rows.length === 0) return res.status(404).json({ message: 'Branch not found' });
     res.json(result.rows[0]);
@@ -644,57 +864,65 @@ app.get('/api/branches/:id/suppliers', async (req, res) => {
 // --- Supplier & Supplier Field Routes ---
 app.get('/api/suppliers/search', async (req, res) => {
   try {
-    const { criteria } = req.query;
-    const query = (req.query.query || '').trim();
-
+    const { criteria, query, status, is_active } = req.query;
     const addressFields = 'a.city, a.street_name, a.house_no, a.zip_code';
     const addressJoin = 'LEFT JOIN address a ON s.address_id = a.address_id';
 
-    if (!query || !criteria) {
-      const allSuppliers = await db.query(`
-        SELECT s.*, ${addressFields},
-               COALESCE(AVG(r.rate), 0) as average_rating,
-               COUNT(r.review_id) as total_reviews
-        FROM supplier s
-        ${addressJoin}
-        LEFT JOIN review r ON s.supplier_id = r.supplier_id
-        WHERE s.status != 'deleted'
-        GROUP BY s.supplier_id, a.address_id
-        ORDER BY s.name
-      `);
-      return res.json(allSuppliers.rows);
+    let sql = `
+      SELECT s.*, ${addressFields}, sf.field,
+             COALESCE(AVG(r.rate), 0) as average_rating,
+             COUNT(r.review_id) as total_reviews
+      FROM supplier s
+      ${addressJoin}
+      LEFT JOIN supplier_field sf ON s.supplier_field_id = sf.supplier_field_id
+      LEFT JOIN review r ON s.supplier_id = r.supplier_id
+      WHERE s.status != 'deleted'
+    `;
+
+    const params = [];
+    let paramIndex = 1;
+
+    // Filter by Search Query
+    if (query && criteria) {
+      if (criteria === 'name') {
+        sql += ` AND s.name ILIKE $${paramIndex}`;
+        params.push(`%${query.trim()}%`);
+        paramIndex++;
+      } else if (criteria === 'tag') {
+        // Fix: checking tags array needs generic array check or text search
+        // Assuming tags is text[]
+        sql += ` AND (sf.field ILIKE $${paramIndex} OR $${paramIndex + 1} = ANY(sf.tags))`;
+        params.push(`%${query.trim()}%`);
+        params.push(query.trim());
+        paramIndex += 2;
+      } else if (criteria === 'id') {
+        sql += ` AND s.supplier_id::text ILIKE $${paramIndex}`;
+        params.push(`%${query.trim()}%`);
+        paramIndex++;
+      }
     }
 
-    let result;
-    if (criteria === 'name') {
-      result = await db.query(`
-        SELECT s.*, ${addressFields},
-               COALESCE(AVG(r.rate), 0) as average_rating,
-               COUNT(r.review_id) as total_reviews
-        FROM supplier s
-        ${addressJoin}
-        LEFT JOIN review r ON s.supplier_id = r.supplier_id
-        WHERE s.name ILIKE $1 AND s.status != 'deleted'
-        GROUP BY s.supplier_id, a.address_id
-        ORDER BY s.name
-      `, [`%${query}%`]);
-    } else if (criteria === 'tag') {
-      result = await db.query(`
-        SELECT s.*, ${addressFields},
-               COALESCE(AVG(r.rate), 0) as average_rating,
-               COUNT(r.review_id) as total_reviews
-        FROM supplier s
-        ${addressJoin}
-        JOIN supplier_field sf ON s.supplier_field_id = sf.supplier_field_id
-        LEFT JOIN review r ON s.supplier_id = r.supplier_id
-        WHERE (sf.field ILIKE $1 OR $2 = ANY(sf.tags)) AND s.status != 'deleted'
-        GROUP BY s.supplier_id, a.address_id
-        ORDER BY s.name
-      `, [`%${query}%`, query.toLowerCase()]);
-    } else {
-      return res.status(400).json({ message: 'Invalid search criteria' });
+    // Filter by Status (e.g., 'approved', 'pending')
+    if (status && status !== 'all') {
+      sql += ` AND s.status = $${paramIndex}`;
+      params.push(status);
+      paramIndex++;
     }
 
+    // Filter by is_active (true/false)
+    if (is_active !== undefined) {
+      // Convert string 'true'/'false' to boolean if needed, or just let PG handle it if param is boolean
+      // Ideally parse it safe
+      const activeBool = is_active === 'true' || is_active === true;
+      sql += ` AND s.is_active = $${paramIndex}`;
+      params.push(activeBool);
+      paramIndex++;
+    }
+
+    sql += ` GROUP BY s.supplier_id, a.address_id, sf.supplier_field_id`;
+    sql += ` ORDER BY s.name ASC`;
+
+    const result = await db.query(sql, params);
     res.json(result.rows);
   } catch (err) {
     console.error(err.message);
@@ -776,7 +1004,7 @@ app.get('/api/suppliers/:id', async (req, res) => {
 app.post('/api/suppliers', async (req, res) => {
   const client = await db.pool.connect();
   try {
-    const { name, poc_name, poc_email, poc_phone, supplier_field_id, new_supplier_field, status, street, street_name, house_no, city, zip_code, payment_terms } = req.body;
+    const { supplier_id, name, poc_name, poc_email, poc_phone, supplier_field_id, new_supplier_field, status, street, street_name, house_no, city, zip_code, payment_terms, is_active } = req.body;
 
     await client.query('BEGIN');
 
@@ -793,17 +1021,26 @@ app.post('/api/suppliers', async (req, res) => {
       }
     }
 
-
-
     const addressId = await addressHelper.createAddress(client, { street: street || street_name, house_no, city, zip_code, phone_no: poc_phone });
 
     // Default status to 'approved' if not provided (valid values: approved, pending, rejected, deleted)
     const finalStatus = status || 'approved';
+    // Default is_active to true
+    const finalIsActive = is_active !== undefined ? is_active : true;
 
-    const newSupplier = await client.query(
-      'INSERT INTO supplier (name, poc_name, poc_email, poc_phone, supplier_field_id, status, address_id, payment_terms) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
-      [name, poc_name, poc_email, poc_phone, finalFieldId, finalStatus, addressId, payment_terms || 'immediate']
-    );
+    // Use specific supplier_id if provided, otherwise let DB auto-increment (if configured, though usually supplier_id is manual/PK)
+    let newSupplier;
+    if (supplier_id) {
+      newSupplier = await client.query(
+        'INSERT INTO supplier (supplier_id, name, poc_name, poc_email, poc_phone, supplier_field_id, status, address_id, payment_terms, is_active) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *',
+        [supplier_id, name, poc_name, poc_email, poc_phone, finalFieldId, finalStatus, addressId, payment_terms || 'immediate', finalIsActive]
+      );
+    } else {
+      newSupplier = await client.query(
+        'INSERT INTO supplier (name, poc_name, poc_email, poc_phone, supplier_field_id, status, address_id, payment_terms, is_active) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',
+        [name, poc_name, poc_email, poc_phone, finalFieldId, finalStatus, addressId, payment_terms || 'immediate', finalIsActive]
+      );
+    }
 
     await client.query('COMMIT');
     res.status(201).json(newSupplier.rows[0]);
@@ -820,7 +1057,7 @@ app.put('/api/suppliers/:id', async (req, res) => {
   const client = await db.pool.connect();
   try {
     const { id } = req.params;
-    const { name, poc_name, poc_phone, poc_email, status, supplier_field_id, street, street_name, house_no, city, zip_code } = req.body;
+    const { name, poc_name, poc_phone, poc_email, status, supplier_field_id, street, street_name, house_no, city, zip_code, is_active } = req.body;
 
     await client.query('BEGIN');
 
@@ -835,19 +1072,51 @@ app.put('/api/suppliers/:id', async (req, res) => {
     let addressId = currentSupplier.rows[0].address_id;
     const addressData = { street: street || street_name, house_no, city, zip_code };
 
-    if (addressId) {
-      await addressHelper.updateAddress(client, addressId, addressData);
-    } else {
-      addressId = await addressHelper.createAddress(client, addressData);
+    // Only update address if address fields are provided
+    if (city || street || street_name || house_no || zip_code) {
+      if (addressId) {
+        await addressHelper.updateAddress(client, addressId, addressData);
+      } else {
+        addressId = await addressHelper.createAddress(client, addressData);
+      }
     }
 
-    const updateSupplier = await client.query(
-      'UPDATE supplier SET name = $1, poc_name = $2, poc_phone = $3, poc_email = $4, status = $5, supplier_field_id = $6, address_id = $7 WHERE supplier_id = $8 RETURNING *',
-      [name, poc_name, poc_phone, poc_email, status, supplier_field_id, addressId, id]
-    );
+    // Dynamic update query construction
+    let updateParts = [];
+    let queryParams = [];
+    let paramCounter = 1;
 
-    await client.query('COMMIT');
-    res.json(updateSupplier.rows[0]);
+    const addParam = (field, value) => {
+      if (value !== undefined) {
+        updateParts.push(`${field} = $${paramCounter}`);
+        queryParams.push(value);
+        paramCounter++;
+      }
+    };
+
+    addParam('name', name);
+    addParam('poc_name', poc_name);
+    addParam('poc_phone', poc_phone);
+    addParam('poc_email', poc_email);
+    addParam('status', status);
+    addParam('supplier_field_id', supplier_field_id);
+    addParam('address_id', addressId);
+    addParam('is_active', is_active);
+
+    if (updateParts.length > 0) {
+      queryParams.push(id);
+      const query = `UPDATE supplier SET ${updateParts.join(', ')} WHERE supplier_id = $${paramCounter} RETURNING *`;
+      const updateSupplier = await client.query(query, queryParams);
+
+      await client.query('COMMIT');
+      res.json(updateSupplier.rows[0]);
+    } else {
+      await client.query('ROLLBACK'); // Nothing to update
+      // Fetch fresh to return
+      const fresh = await client.query('SELECT * FROM supplier WHERE supplier_id = $1', [id]);
+      res.json(fresh.rows[0]);
+    }
+
   } catch (err) {
     await client.query('ROLLBACK');
     console.error(err.message);
@@ -871,14 +1140,34 @@ app.delete('/api/suppliers/:id', async (req, res) => {
 // --- Supplier Request Routes ---
 app.get('/api/supplier-requests/pending', async (req, res) => {
   try {
-    const result = await db.query(`
+    const requestsResult = await db.query(`
         SELECT sr.*, u.first_name || ' ' || u.surname as requested_by, b.name as branch_name
         FROM supplier_request sr
         JOIN "user" u ON sr.requested_by_user_id = u.user_id
         JOIN branch b ON sr.branch_id = b.branch_id
-        WHERE sr.status = 'pending' ORDER BY sr.created_at DESC
+        WHERE sr.status = 'pending'
       `);
-    res.json(result.rows);
+
+    // Fetch direct pending suppliers (not via request)
+    const pendingSuppliersResult = await db.query(`
+        SELECT supplier_id, name 
+        FROM supplier 
+        WHERE status = 'pending'
+      `);
+
+    const suppliersAsRequests = pendingSuppliersResult.rows.map(s => ({
+      supplier_req_id: `S-${s.supplier_id}`,
+      supplier_name: s.name,
+      requested_by: 'הזנה ישירה',
+      branch_name: 'כללי',
+      created_at: s.created_at || new Date(),
+      status: 'pending',
+      is_direct: true
+    }));
+
+    const combined = [...requestsResult.rows, ...suppliersAsRequests].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+    res.json(combined);
   } catch (err) {
     console.error(err.message);
     res.status(500).send('Server Error');
@@ -937,6 +1226,11 @@ app.post('/api/supplier-requests', auth, async (req, res) => {
     const userResult = await db.query('SELECT first_name, surname FROM "user" WHERE user_id = $1', [requested_by_user_id]);
     const userName = userResult.rows[0] ? `${userResult.rows[0].first_name} ${userResult.rows[0].surname}` : 'משתמש';
 
+    // Get branch name
+    const branchRes = await db.query('SELECT name FROM branch WHERE branch_id = $1', [branch_id]);
+    const branchName = branchRes.rows[0] ? branchRes.rows[0].name : '';
+    const requesterDisplay = branchName ? `${userName} (${branchName})` : userName;
+
     // Notify Admins and Treasurers about the new request
     const notifiablesResult = await db.query("SELECT user_id FROM \"user\" WHERE role IN ('admin', 'treasurer')");
 
@@ -944,7 +1238,7 @@ app.post('/api/supplier-requests', auth, async (req, res) => {
       await alertService.sendActionNotification(
         admin.user_id,
         'בקשה לספק חדש',
-        `התקבלה בקשה חדשה מ-${userName} להוספת הספק: ${finalSupplierName}`,
+        `התקבלה בקשה חדשה מ-${requesterDisplay} להוספת הספק: ${finalSupplierName}`,
         'action_required'
       );
     }
@@ -959,6 +1253,24 @@ app.post('/api/supplier-requests', auth, async (req, res) => {
 app.put('/api/supplier-requests/:id', async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
+  const reviewed_by_user_id = req.user.id; // Get ID from auth middleware for logging/notifications
+
+  // Handle Direct Supplier Approval (ID starts with S-)
+  if (id.startsWith('S-')) {
+    const realId = id.split('-')[1];
+    try {
+      if (status === 'approved') {
+        await db.query("UPDATE supplier SET status = 'approved' WHERE supplier_id = $1", [realId]);
+        return res.json({ message: 'Direct supplier approved' });
+      } else if (status === 'rejected') {
+        await db.query("UPDATE supplier SET status = 'rejected' WHERE supplier_id = $1", [realId]);
+        return res.json({ message: 'Direct supplier rejected' });
+      }
+    } catch (err) {
+      console.error(err);
+      return res.status(500).send('Server Error');
+    }
+  }
 
   if (!['approved', 'rejected'].includes(status)) {
     return res.status(400).json({ message: 'Invalid status' });
@@ -988,13 +1300,17 @@ app.put('/api/supplier-requests/:id', async (req, res) => {
     if (status === 'approved') {
       const { requested_supplier_id } = req.body;
       let newSupplierId = requested_supplier_id;
-
       let supplierNameForNotify = request.supplier_name;
 
-      if (!newSupplierId) {
+      // Check if supplier exists with this ID
+      let supplierExists = false;
+      if (newSupplierId) {
+        const checkRes = await client.query('SELECT supplier_id FROM supplier WHERE supplier_id = $1', [newSupplierId]);
+        if (checkRes.rows.length > 0) supplierExists = true;
+      }
+
+      if (!newSupplierId || (newSupplierId && !supplierExists)) {
         // 2. Create Address
-        // request object now has: city, street_name, zip_code...
-        // ... (Existing logic only runs if NO ID provided)
         const addressId = await addressHelper.createAddress(client, {
           city: request.city,
           street_name: request.street_name,
@@ -1010,7 +1326,6 @@ app.put('/api/supplier-requests/:id', async (req, res) => {
         // Handle new supplier field creation if needed
         if (!finalSupplierFieldId && request.new_supplier_field) {
           const fieldName = request.new_supplier_field.trim();
-          // Check if exists first to avoid duplicates
           const existingFieldRes = await client.query('SELECT supplier_field_id FROM supplier_field WHERE field = $1', [fieldName]);
 
           if (existingFieldRes.rows.length > 0) {
@@ -1024,22 +1339,45 @@ app.put('/api/supplier-requests/:id', async (req, res) => {
           }
         }
 
-        const newSupplierFields = [
-          request.supplier_name,
-          request.poc_name,
-          request.poc_email,
-          request.poc_phone,
-          finalSupplierFieldId || 1, // Fallback to 1 only if truly no info
-          'approved', // Use 'approved' directly to match constraint
-          addressId,
-          'plus_35'
-        ];
+        let createSupplierQuery;
+        let newSupplierFields;
 
-        const createSupplierQuery = `
+        if (newSupplierId) {
+          // Create WITH specific ID
+          newSupplierFields = [
+            newSupplierId,
+            request.supplier_name,
+            request.poc_name,
+            request.poc_email,
+            request.poc_phone,
+            finalSupplierFieldId || 1,
+            'approved',
+            addressId,
+            req.body.payment_terms || 'immediate'
+          ];
+          createSupplierQuery = `
+                INSERT INTO supplier (supplier_id, name, poc_name, poc_email, poc_phone, supplier_field_id, status, address_id, payment_terms) 
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
+                RETURNING *
+            `;
+        } else {
+          // Create with AUTO ID
+          newSupplierFields = [
+            request.supplier_name,
+            request.poc_name,
+            request.poc_email,
+            request.poc_phone,
+            finalSupplierFieldId || 1,
+            'approved',
+            addressId,
+            req.body.payment_terms || 'immediate'
+          ];
+          createSupplierQuery = `
                 INSERT INTO supplier (name, poc_name, poc_email, poc_phone, supplier_field_id, status, address_id, payment_terms) 
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
                 RETURNING *
             `;
+        }
 
         const supplierResult = await client.query(createSupplierQuery, newSupplierFields);
         newSupplierId = supplierResult.rows[0].supplier_id;
@@ -1051,6 +1389,10 @@ app.put('/api/supplier-requests/:id', async (req, res) => {
         resultPayload = { supplier_id: newSupplierId, message: 'Request approved and linked.' };
       }
 
+      // Fetch reviewer name for notification
+      const reviewerRes = await client.query('SELECT first_name, surname FROM "user" WHERE user_id = $1', [reviewed_by_user_id]);
+      const reviewerName = reviewerRes.rows[0] ? `${reviewerRes.rows[0].first_name} ${reviewerRes.rows[0].surname}` : 'System';
+
       // Update the request with the created supplier ID
       await client.query('UPDATE supplier_request SET status = $1, requested_supplier_id = $2 WHERE supplier_req_id = $3', ['approved', newSupplierId, id]);
 
@@ -1059,7 +1401,7 @@ app.put('/api/supplier-requests/:id', async (req, res) => {
         await client.query(`
             INSERT INTO notification (user_id, message, type, created_at)
             VALUES ($1, $2, 'supplier_approved', NOW())
-          `, [request.requested_by_user_id, `הבקשה להוספת ספק "${supplierNameForNotify}" אושרה`]);
+          `, [request.requested_by_user_id, `הבקשה להוספת ספק "${supplierNameForNotify}" אושרה על ידי ${reviewerName}`]);
       }
 
     } else {
@@ -1067,9 +1409,13 @@ app.put('/api/supplier-requests/:id', async (req, res) => {
       const { rejection_reason } = req.body;
       await client.query('UPDATE supplier_request SET status = $1 WHERE supplier_req_id = $2', ['rejected', id]);
 
+      // Fetch reviewer name for notification
+      const reviewerRes = await client.query('SELECT first_name, surname FROM "user" WHERE user_id = $1', [reviewed_by_user_id]);
+      const reviewerName = reviewerRes.rows[0] ? `${reviewerRes.rows[0].first_name} ${reviewerRes.rows[0].surname}` : 'System';
+
       // Notify branch manager
       if (request.requested_by_user_id) {
-        const rejectionMsg = `הבקשה להוספת ספק "${request.supplier_name}" נדחתה` + (rejection_reason ? `. סיבה: ${rejection_reason}` : '.');
+        const rejectionMsg = `הבקשה להוספת ספק "${request.supplier_name}" נדחתה על ידי ${reviewerName}` + (rejection_reason ? `. סיבה: ${rejection_reason}` : '.');
         await client.query(`
               INSERT INTO notification (user_id, message, type, created_at)
               VALUES ($1, $2, 'supplier_rejected', NOW())
@@ -1085,6 +1431,8 @@ app.put('/api/supplier-requests/:id', async (req, res) => {
   } catch (err) {
     await client.query('ROLLBACK');
     console.error(err.message);
+    const fs = require('fs');
+    try { fs.writeFileSync('debug_error.log', err.message + '\n' + err.stack); } catch (e) { }
     res.status(500).send('Server Error');
   } finally {
     client.release();
@@ -1217,8 +1565,16 @@ app.get('/api/dashboard/summary', async (req, res) => {
       `;
     const expensesResult = await db.query(expensesQuery);
 
-    // Overdue Invoices: Open & Past Due
-    const overdueQuery = `SELECT COUNT(*) FROM transaction WHERE due_date < NOW() AND status = 'open'`;
+    // Overdue Invoices: Open & Past Due (Filtered for valid Payment Requests or Sales only)
+    const overdueQuery = `
+      SELECT COUNT(*) 
+      FROM transaction t
+      LEFT JOIN sale s ON t.transaction_id = s.transaction_id
+      LEFT JOIN payment_req pr ON t.transaction_id = pr.transaction_id
+      WHERE t.due_date < NOW() 
+        AND t.status = 'open'
+        AND (s.sale_id IS NOT NULL OR pr.payment_req_id IS NOT NULL)
+    `;
     const overdueResult = await db.query(overdueQuery);
 
     // Upcoming Payments (This Month): Open Expenses Only
@@ -1246,22 +1602,16 @@ app.get('/api/dashboard/summary', async (req, res) => {
     // --- New Logic for Cash Flow Widget (Current Year) ---
     // Income: Open Sales/Client Requests (positive transactions linked to sales)
     const yearToDateIncomeQuery = `
-      SELECT SUM(t.value) as total
+      SELECT SUM(ABS(t.value)) as total
       FROM transaction t
       JOIN sale s ON t.transaction_id = s.transaction_id
       WHERE t.status = 'open'
         AND EXTRACT(YEAR FROM t.due_date) = EXTRACT(YEAR FROM CURRENT_DATE)
     `;
-    // Expenses: Open Payment Requests/Supplier Payments (transactions linked to payment_req)
-    // Note: Expenses are usually stored as positive values in the transaction table if 'value' represents the amount to pay?
-    // Let's assume standard behavior: if it's a payment request, the transaction value represents the cost.
-    // If system stores expenses as negative, we should use ABS or SUM negative.
-    // Based on `totalSupplierBalance` query above which uses SUM(value), it seems values are signed properly or positive for debts.
-    // Let's verify by just summing them. If they are stored as negative (credit), this will return negative.
-    // However, usually "Expenses" in a chart are shown as a positive bar.
-    // Safest bet for "Expenses" = Sum of Unpaid Supplier Transactions.
+    // Expenses: Open Payment Requests/Supplier Payments
+    // We use ABS() to ensure we treat all values as positive magnitudes before subtracting them in the net calculation.
     const yearToDateExpensesQuery = `
-      SELECT SUM(t.value) as total
+      SELECT SUM(ABS(t.value)) as total
       FROM transaction t
       JOIN payment_req pr ON t.transaction_id = pr.transaction_id
       WHERE t.status = 'open' 
@@ -1294,7 +1644,7 @@ app.get('/api/reports/annual-cash-flow', async (req, res) => {
         SELECT 
           TO_CHAR(DATE_TRUNC('month', t.due_date), 'YYYY-MM') AS month,
           -- Income = All Sales (Paid + Open)
-          SUM(CASE WHEN sa.sale_id IS NOT NULL THEN t.value ELSE 0 END) AS income,
+          SUM(CASE WHEN sa.sale_id IS NOT NULL THEN ABS(t.value) ELSE 0 END) AS income,
           -- Expenses = All Payment Requests (Paid + Open), returned as positive for chart
           SUM(CASE WHEN pr.payment_req_id IS NOT NULL THEN ABS(t.value) ELSE 0 END) AS expense
         FROM transaction t
@@ -1319,9 +1669,9 @@ app.get('/api/reports/branch-profitability', async (req, res) => {
     const query = `
       SELECT 
         b.name as branch_name,
-        SUM(CASE WHEN sa.sale_id IS NOT NULL THEN t.value ELSE 0 END) as total_income,
+        SUM(CASE WHEN sa.sale_id IS NOT NULL THEN ABS(t.value) ELSE 0 END) as total_income,
         SUM(CASE WHEN pr.payment_req_id IS NOT NULL THEN ABS(t.value) ELSE 0 END) as total_expense,
-        (SUM(CASE WHEN sa.sale_id IS NOT NULL THEN t.value ELSE 0 END) - 
+        (SUM(CASE WHEN sa.sale_id IS NOT NULL THEN ABS(t.value) ELSE 0 END) - 
          SUM(CASE WHEN pr.payment_req_id IS NOT NULL THEN ABS(t.value) ELSE 0 END)) as profit
       FROM transaction t
       LEFT JOIN sale sa ON t.transaction_id = sa.transaction_id
@@ -1518,19 +1868,30 @@ app.get('/api/notifications/pending-requests-count', async (req, res) => {
         WHERE t.status = 'pending_approval'
       `);
 
+    // NEW: Count pending payment requests (Supplier Payments)
+    const paymentReqResult = await db.query(`
+        SELECT COUNT(*) 
+        FROM payment_req pr 
+        JOIN transaction t ON pr.transaction_id = t.transaction_id 
+        WHERE t.status = 'pending_approval'
+      `);
+
     const supplierCount = parseInt(supplierResult.rows[0].count, 10);
     const clientCount = parseInt(clientResult.rows[0].count, 10);
     const salesCount = parseInt(salesResult.rows[0].count, 10);
-    const totalCount = supplierCount + clientCount + salesCount;
+    const paymentReqCount = parseInt(paymentReqResult.rows[0].count, 10);
 
-    console.log(`[Notifications] Pending count: ${supplierCount} suppliers + ${clientCount} clients + ${salesCount} sales = ${totalCount} total`);
+    const totalCount = supplierCount + clientCount + salesCount + paymentReqCount;
+
+    console.log(`[Notifications] Pending count: ${supplierCount} suppliers + ${clientCount} clients + ${salesCount} sales + ${paymentReqCount} payments = ${totalCount} total`);
 
     res.json({
       count: totalCount,
       breakdown: {
         suppliers: supplierCount,
         clients: clientCount,
-        sales: salesCount
+        sales: salesCount,
+        payment_requests: paymentReqCount
       }
     });
   } catch (err) {
@@ -1944,7 +2305,7 @@ app.get('/api/payments/all', async (req, res) => {
         SELECT * FROM (
           SELECT 
             t.transaction_id,
-            t.value,
+            ABS(t.value) as value,
             t.due_date,
             t.status,
             t.alert_id,
@@ -1976,7 +2337,7 @@ app.get('/api/payments/all', async (req, res) => {
           
           SELECT 
             t.transaction_id,
-            t.value,
+            ABS(t.value) as value,
             t.due_date,
             t.status,
             t.alert_id,
@@ -2148,75 +2509,124 @@ app.get('/api/payments/reports/supplier-patterns', async (req, res) => {
 // Get clients - filtered by branch if branchId provided (shows clients with sales OR requested by branch)
 app.get('/api/clients/search', async (req, res) => {
   try {
-    const { criteria, query, branchId } = req.query;
+    const { criteria, query, branchId, status = 'active', page, limit } = req.query;
 
-    // If branchId is provided, return clients that have sales with this branch OR were requested by this branch
+    // Logic Update: Branch column should show the branch that REQUESTED the client.
+    // If no request found (manual creation), show "Treasurer" (גזברות).
+    // Note: We still probably want to filter by branch based on Sales + Requests if 'branchId' is present (Branch Manager View),
+    // but the DISPLAY column 'branch_names' should be strict about Origin.
+
+    // We left join client_request.
+    // Issue: A client might have multiple approved requests? Typically 1 creation request.
+    // We aggregate just in case.
+
+    let sqlQuery = `
+        SELECT 
+            c.*, 
+            a.city, a.street_name, a.house_no, a.zip_code, a.phone_no,
+            COALESCE(
+              STRING_AGG(DISTINCT b_req.name, ', '), 
+              'גזברות'
+            ) as branch_names
+        FROM client c
+        LEFT JOIN address a ON c.address_id = a.address_id
+        LEFT JOIN client_request cr ON c.client_id = cr.client_id AND cr.status = 'approved'
+        LEFT JOIN branch b_req ON cr.branch_id = b_req.branch_id
+        
+        -- We might still need sales for FILTERING by branchId if the manager wants to see clients who bought from them?
+        -- The requirement says "See clients associated". Usually implies Sales OR Request.
+        -- But for the DISPLAY column, we specifically want Request Origin.
+        -- To filter efficiently without affecting the display column join logic, we can subquery in WHERE/FILTER.
+    `;
+
+    const params = [];
+    let paramIndex = 1;
+    const filters = [];
+
+    // Filter by Branch ID (if strictly provided, e.g. Branch Manager view)
     if (branchId) {
-      let sqlQuery = `
-        SELECT DISTINCT c.*, a.city, a.street_name, a.house_no, a.zip_code, a.phone_no
-        FROM client c
-        LEFT JOIN address a ON c.address_id = a.address_id
-        WHERE c.client_id IN (
-          -- Clients with sales for this branch
-          SELECT DISTINCT client_id FROM sale WHERE branch_id = $1
+      filters.push(`c.client_id IN (
+          SELECT DISTINCT client_id FROM sale WHERE branch_id = $${paramIndex}
           UNION
-          -- Clients requested by users from this branch (approved requests only)
           SELECT DISTINCT client_id FROM client_request 
-          WHERE branch_id = $1 AND client_id IS NOT NULL AND status = 'approved'
-        )
-      `;
-      const params = [branchId];
+          WHERE branch_id = $${paramIndex} AND client_id IS NOT NULL AND status = 'approved'
+        )`);
+      params.push(branchId);
+      paramIndex++;
+    }
 
-      if (query && criteria) {
-        if (criteria === 'name') {
-          sqlQuery += ' AND c.name ILIKE $2';
-          params.push(`%${query}%`);
-        } else if (criteria === 'id') {
-          // Search by client_number (business identifier entered by treasurer)
-          sqlQuery += ' AND c.client_number ILIKE $2';
-          params.push(`%${query}%`);
-        }
+    // Filter by Status (active/inactive/all)
+    if (status !== 'all') {
+      const isActive = status === 'active';
+      if (isActive) {
+        filters.push(`(c.is_active IS TRUE OR c.is_active IS NULL)`);
+      } else {
+        filters.push(`c.is_active IS FALSE`);
       }
-
-      sqlQuery += ' ORDER BY c.name';
-      const result = await db.query(sqlQuery, params);
-      return res.json(result.rows);
     }
 
-    // For accounting/treasurer - return all clients with optional search
-    if (!query || !criteria) {
-      const allClients = await db.query(`
-        SELECT c.*, a.city, a.street_name, a.house_no, a.zip_code, a.phone_no
-        FROM client c
-        LEFT JOIN address a ON c.address_id = a.address_id
-        ORDER BY c.name
-      `);
-      return res.json(allClients.rows);
+    // Search Criteria
+    if (query && criteria) {
+      if (criteria === 'name') {
+        filters.push(`c.name ILIKE $${paramIndex}`);
+        params.push(`%${query}%`);
+        paramIndex++;
+      } else if (criteria === 'id') {
+        filters.push(`c.client_number ILIKE $${paramIndex}`);
+        params.push(`%${query}%`);
+        paramIndex++;
+      } else if (criteria === 'branch') {
+        // Search by the DISPLAYED branch name (Requesting branch or 'גזברות')
+        // This is tricky with COALESCE in WHERE.
+        // If query is 'גזברות', we want those with NULL b_req.name.
+        // If query is 'Refet', we want matches.
+
+        filters.push(`(COALESCE(b_req.name, 'גזברות') ILIKE $${paramIndex})`);
+        params.push(`%${query}%`);
+        paramIndex++;
+      }
     }
 
-    let result;
-    if (criteria === 'name') {
-      result = await db.query(`
-        SELECT c.*, a.city, a.street_name, a.house_no, a.zip_code, a.phone_no
-        FROM client c
-        LEFT JOIN address a ON c.address_id = a.address_id
-        WHERE c.name ILIKE $1
-        ORDER BY c.name
-      `, [`%${query}%`]);
-    } else if (criteria === 'id') {
-      // Search by client_number (business identifier entered by treasurer)
-      result = await db.query(`
-        SELECT c.*, a.city, a.street_name, a.house_no, a.zip_code, a.phone_no
-        FROM client c
-        LEFT JOIN address a ON c.address_id = a.address_id
-        WHERE c.client_number ILIKE $1
-        ORDER BY c.name
-      `, [`%${query}%`]);
-    } else {
-      return res.status(400).json({ message: 'Invalid search criteria' });
+    if (filters.length > 0) {
+      sqlQuery += ` WHERE ${filters.join(' AND ')}`;
     }
 
-    res.json(result.rows);
+    // GROUP BY to allow aggregation
+    sqlQuery += ` GROUP BY c.client_id, a.address_id`;
+    sqlQuery += ' ORDER BY c.name';
+
+    // Pagination
+    if (page && limit) {
+      const p = parseInt(page);
+      const l = parseInt(limit);
+      const offset = (p - 1) * l;
+      sqlQuery += ` LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+      params.push(l, offset);
+    }
+
+    const result = await db.query(sqlQuery, params);
+
+    // Total Count Query
+    let countQuery = `
+        SELECT COUNT(DISTINCT c.client_id) 
+        FROM client c
+        LEFT JOIN address a ON c.address_id = a.address_id
+        LEFT JOIN client_request cr ON c.client_id = cr.client_id AND cr.status = 'approved'
+        LEFT JOIN branch b_req ON cr.branch_id = b_req.branch_id
+    `;
+    if (filters.length > 0) {
+      countQuery += ` WHERE ${filters.join(' AND ')}`;
+    }
+    // Remove limit/offset params from count params
+    const countResult = await db.query(countQuery, params.slice(0, paramIndex - 1));
+
+    res.json({
+      data: result.rows,
+      total: parseInt(countResult.rows[0].count),
+      page: parseInt(page || 1),
+      limit: parseInt(limit || 20)
+    });
+
   } catch (err) {
     console.error(err.message);
     res.status(500).send('Server Error');
@@ -2266,11 +2676,10 @@ app.get('/api/clients/:id/sales', async (req, res) => {
 });
 
 // Create new client
-// Create new client
 app.post('/api/clients', async (req, res) => {
   const client = await db.pool.connect();
   try {
-    const { name, poc_name, poc_phone, poc_email, city, street_name, house_no, zip_code } = req.body;
+    const { name, poc_name, poc_phone, poc_email, city, street_name, house_no, zip_code, payment_terms, client_number } = req.body;
 
     if (!name || !poc_name || !poc_phone) {
       return res.status(400).json({ message: 'שם הלקוח, שם איש הקשר וטלפון הם שדות חובה' });
@@ -2289,10 +2698,11 @@ app.post('/api/clients', async (req, res) => {
     });
 
     // Insert client
+    // Note: client_number is optional but good to have if provided manually
     const result = await client.query(
-      `INSERT INTO client (name, address_id, poc_name, poc_phone, poc_email) 
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [name, addressId, poc_name, poc_phone, poc_email || null]
+      `INSERT INTO client (name, address_id, poc_name, poc_phone, poc_email, is_active, payment_terms, client_number) 
+       VALUES ($1, $2, $3, $4, $5, TRUE, $6, $7) RETURNING *`,
+      [name, addressId, poc_name, poc_phone, poc_email || null, payment_terms || 'immediate', client_number || null]
     );
 
     await client.query('COMMIT');
@@ -2307,12 +2717,11 @@ app.post('/api/clients', async (req, res) => {
 });
 
 // Update client
-// Update client
 app.put('/api/clients/:id', async (req, res) => {
   const client = await db.pool.connect();
   try {
     const { id } = req.params;
-    const { name, poc_name, poc_phone, poc_email, city, street_name, house_no, zip_code } = req.body;
+    const { name, poc_name, poc_phone, poc_email, city, street_name, house_no, zip_code, is_active, payment_terms, client_number } = req.body;
 
     await client.query('BEGIN');
 
@@ -2332,13 +2741,34 @@ app.put('/api/clients/:id', async (req, res) => {
       });
     }
 
+    // Build Update Query dynamic to handle optional fields
+    let updateQuery = `UPDATE client SET name = $1, poc_name = $2, poc_phone = $3, poc_email = $4`
+    const params = [name, poc_name, poc_phone, poc_email];
+    let paramIndex = 5;
+
+    if (is_active !== undefined) {
+      updateQuery += `, is_active = $${paramIndex}`;
+      params.push(is_active);
+      paramIndex++;
+    }
+
+    if (payment_terms !== undefined) {
+      updateQuery += `, payment_terms = $${paramIndex}`;
+      params.push(payment_terms);
+      paramIndex++;
+    }
+
+    if (client_number !== undefined) {
+      updateQuery += `, client_number = $${paramIndex}`;
+      params.push(client_number);
+      paramIndex++;
+    }
+
+    updateQuery += ` WHERE client_id = $${paramIndex} RETURNING *`;
+    params.push(id);
+
     // Update client
-    const result = await client.query(
-      `UPDATE client 
-       SET name = $1, poc_name = $2, poc_phone = $3, poc_email = $4
-       WHERE client_id = $5 RETURNING *`,
-      [name, poc_name, poc_phone, poc_email, id]
-    );
+    const result = await client.query(updateQuery, params);
 
     await client.query('COMMIT');
     res.json(result.rows[0]);
@@ -2355,17 +2785,9 @@ app.put('/api/clients/:id', async (req, res) => {
 app.delete('/api/clients/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    // Check if client has any sales
-    const salesCheck = await db.query("SELECT COUNT(*) FROM sale WHERE client_id = $1", [id]);
-
-    if (parseInt(salesCheck.rows[0].count) > 0) {
-      return res.status(400).json({
-        message: 'לא ניתן למחוק לקוח שיש לו דרישות תשלום קיימות'
-      });
-    }
-
-    await db.query("DELETE FROM client WHERE client_id = $1", [id]);
-    res.status(200).json({ message: `Client with ID ${id} was deleted.` });
+    // Soft delete: Just set is_active to false
+    await db.query("UPDATE client SET is_active = FALSE WHERE client_id = $1", [id]);
+    res.status(200).json({ message: `Client with ID ${id} was deactivated (soft deleted).` });
   } catch (err) {
     console.error(err.message);
     res.status(500).send('Server Error');
@@ -2466,13 +2888,22 @@ app.post('/api/client-requests', auth, async (req, res) => {
       'pending'
     ]);
 
+    // Get current user name for the notification
+    const userResult = await db.query('SELECT first_name, surname FROM "user" WHERE user_id = $1', [requested_by_user_id]);
+    const userName = userResult.rows[0] ? `${userResult.rows[0].first_name} ${userResult.rows[0].surname}` : 'משתמש';
+
+    // Get branch name
+    const branchRes = await db.query('SELECT name FROM branch WHERE branch_id = $1', [branch_id]);
+    const branchName = branchRes.rows[0] ? branchRes.rows[0].name : '';
+    const requesterDisplay = branchName ? `${userName} (${branchName})` : userName;
+
     // Create in-app notification for accounting (permissions_id: 1=admin, 2=treasurer)
     await db.query(`
       INSERT INTO notification (user_id, message, type, created_at)
       SELECT user_id, $1, 'info', NOW()
       FROM "user"
       WHERE role IN ('admin', 'treasurer')
-    `, [`בקשה חדשה לרישום לקוח: ${finalClientName}`]);
+    `, [`בקשה חדשה לרישום לקוח: ${finalClientName} מאת: ${requesterDisplay}`]);
 
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -3101,8 +3532,8 @@ app.post('/api/sales/request', auth, async (req, res) => {
       throw error;
     }
   } catch (err) {
-    console.error('Error creating sale request:', err.message);
-    res.status(500).json({ message: 'שגיאה בשליחת דרישת התשלום' });
+    console.error('Error creating payment request:', err.message);
+    res.status(500).json({ message: 'Server Error: ' + err.message });
   }
 });
 
@@ -3340,11 +3771,30 @@ app.post('/api/payment-requests', auth, async (req, res) => {
 
     try {
       // Create transaction
-      // Note: due_date is "requested payment date"
+      // Fetch Supplier's Payment Terms to enforce default
+      const supplierRes = await db.query('SELECT payment_terms FROM supplier WHERE supplier_id = $1', [supplier_id]);
+      const supplierTerms = supplierRes.rows[0]?.payment_terms;
+      console.log(`Debug Payment Request: Supplier ${supplier_id} terms: ${supplierTerms}`);
+      const effectiveTerms = supplierTerms || 'immediate';
+
+      // Note: due_date is "requested payment date" unless payment_terms are provided
+      let finalDueDate = due_date;
+
+
+      const { calculateDueDate } = require('./utils/paymentCalculations');
+      const baseDate = req.body.transaction_date || new Date();
+      finalDueDate = calculateDueDate(baseDate, effectiveTerms);
+
+      // Auto-approve logic for Admins/Treasurers
+      let initialStatus = 'pending_approval';
+      if (req.body.auto_approve === true && ['admin', 'treasurer'].includes(req.user.role)) {
+        initialStatus = 'open';
+      }
+
       const transactionResult = await db.query(
         `INSERT INTO transaction (value, due_date, status, description) 
-         VALUES ($1, $2, 'pending_approval', $3) RETURNING transaction_id`,
-        [dbValue, due_date || null, finalDescription]
+         VALUES ($1, $2, $3, $4) RETURNING transaction_id`,
+        [dbValue, finalDueDate || null, initialStatus, finalDescription]
       );
       const transactionId = transactionResult.rows[0].transaction_id;
 
@@ -3369,13 +3819,22 @@ app.post('/api/payment-requests', auth, async (req, res) => {
 
       await db.query('COMMIT');
 
+      // Get sender details
+      const senderRes = await db.query('SELECT first_name, surname FROM "user" WHERE user_id = $1', [req.user.id]);
+      const senderName = senderRes.rows[0] ? `${senderRes.rows[0].first_name} ${senderRes.rows[0].surname}` : 'משתמש';
+
+      // Get branch name
+      const branchRes = await db.query('SELECT name FROM branch WHERE branch_id = $1', [branch_id]);
+      const branchName = branchRes.rows[0] ? branchRes.rows[0].name : '';
+      const requesterDisplay = branchName ? `${senderName} (${branchName})` : senderName;
+
       // Notify Treasurer (Role based)
       await db.query(`
         INSERT INTO notification (user_id, message, type, created_at)
         SELECT user_id, $1, 'info', NOW()
         FROM "user"
         WHERE role IN ('admin', 'treasurer')
-      `, [`דרישת תשלום חדשה מספק ממתינה לאישור - סכום: ₪${Math.abs(dbValue)}`]);
+      `, [`דרישת תשלום מספק ממתינה לאישור - סכום: ₪${amount} מאת: ${requesterDisplay}`]);
 
       res.status(201).json({
         ...payReqResult.rows[0],
@@ -3433,6 +3892,75 @@ app.put('/api/payment-requests/:id/approve', auth, async (req, res) => {
     }
   } catch (err) {
     console.error(err.message);
+    res.status(500).send('Server Error');
+  }
+});
+
+app.get('/api/suppliers/search', async (req, res) => {
+  try {
+    const { query, criteria, status, is_active } = req.query;
+
+    let sqlQuery = `
+      SELECT s.*, 
+             COALESCE(AVG(r.rate), 0) as average_rating
+      FROM supplier s
+      LEFT JOIN review r ON s.supplier_id = r.supplier_id
+      WHERE 1=1
+    `;
+    const params = [];
+    let paramIndex = 1;
+
+    // Filters
+    if (status) {
+      sqlQuery += ` AND s.status = $${paramIndex}`;
+      params.push(status);
+      paramIndex++;
+    }
+
+    if (is_active !== undefined) {
+      sqlQuery += ` AND s.is_active = $${paramIndex}`;
+      params.push(is_active === 'true');
+      paramIndex++;
+    }
+
+    if (query && query.trim() !== '') {
+      const q = query.trim();
+      if (criteria === 'name') {
+        sqlQuery += ` AND s.name ILIKE $${paramIndex}`;
+        params.push(`%${q}%`);
+        paramIndex++;
+      } else if (criteria === 'id') {
+        sqlQuery += ` AND CAST(s.supplier_id AS TEXT) LIKE $${paramIndex}`;
+        params.push(`%${q}%`);
+        paramIndex++;
+      } else if (criteria === 'tag') {
+        // Tag search via join or subquery if needed, but for now simple 'field' check or tag logic
+        // Assuming simple field match or we need to join supplier_field.
+        // Let's assume naive tag search on field name if not fully implemented tag system
+        sqlQuery += ` AND s.supplier_field_id IN (SELECT supplier_field_id FROM supplier_field WHERE field ILIKE $${paramIndex} OR $${paramIndex} = ANY(tags))`;
+        params.push(`%${q}%`);
+        paramIndex++;
+      } else {
+        // Default catch-all
+        sqlQuery += ` AND (s.name ILIKE $${paramIndex} OR CAST(s.supplier_id AS TEXT) LIKE $${paramIndex})`;
+        params.push(`%${q}%`);
+        paramIndex++;
+      }
+    }
+
+    sqlQuery += ` GROUP BY s.supplier_id ORDER BY s.name`;
+
+    const result = await db.query(sqlQuery, params);
+
+    // Format rating to 1 decimal
+    const formattedRows = result.rows.map(row => ({
+      ...row,
+      average_rating: parseFloat(parseFloat(row.average_rating).toFixed(1))
+    }));
+
+    res.json(formattedRows);
+  } catch (err) {
+    console.error('Error searching suppliers:', err.message);
     res.status(500).send('Server Error');
   }
 });

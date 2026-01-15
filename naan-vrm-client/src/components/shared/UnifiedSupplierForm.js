@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { PAYMENT_TERMS_OPTIONS } from '../../utils/paymentTerms';
 import api from '../../api/axiosConfig';
 import Button from '../shared/Button';
 import Modal from '../shared/Modal';
@@ -11,9 +12,10 @@ function UnifiedSupplierForm({
     onClose,
     onSubmit,
     initialData = null,
-    mode = 'treasurer', // 'treasurer' | 'coordinator'
+    mode = 'treasurer', // 'treasurer' | 'branch_manager'
     title,
-    submitLabel = 'שמור'
+    submitLabel = 'שמור',
+    extraPayload = {} // Additional data to send with the request (e.g. branch_id)
 }) {
     const [formData, setFormData] = useState({
         supplier_id: '',
@@ -57,6 +59,11 @@ function UnifiedSupplierForm({
             let initFieldId = initialData.supplier_field_id || '';
             let initNewField = initialData.new_supplier_field || '';
 
+            // Handle case where field might be object or ID
+            if (typeof initFieldId === 'object') {
+                initFieldId = initFieldId.supplier_field_id;
+            }
+
             // If we have a new field string but no ID (or ID is null), set mode to 'new'
             if (initNewField && !initFieldId) {
                 setSelectedField('new');
@@ -99,6 +106,7 @@ function UnifiedSupplierForm({
             setSelectedField('');
             setNewField('');
             setErrors({});
+            setServerError('');
         }
     }, [open, initialData]);
 
@@ -118,15 +126,23 @@ function UnifiedSupplierForm({
 
     const validateForm = () => {
         const newErrors = {};
+        const isTreasurer = mode === 'treasurer';
+
         const requiredFields = [
             { value: formData.supplier_id, name: 'supplier_id', label: 'מספר ח.פ. ספק' },
             { value: formData.name, name: 'name', label: 'שם הספק' },
             { value: formData.poc_name, name: 'poc_name', label: 'שם איש קשר' },
             { value: formData.poc_phone, name: 'poc_phone', label: 'טלפון איש קשר' },
-            { value: formData.city, name: 'city', label: 'עיר' },
-            { value: formData.street, name: 'street', label: 'רחוב' },
-            { value: formData.house_no, name: 'house_no', label: 'מספר בית' },
         ];
+
+        // Address fields are optional for branch manager
+        if (isTreasurer) {
+            requiredFields.push(
+                { value: formData.city, name: 'city', label: 'עיר' },
+                { value: formData.street, name: 'street', label: 'רחוב' },
+                { value: formData.house_no, name: 'house_no', label: 'מספר בית' }
+            );
+        }
 
         if (!selectedField) {
             newErrors.selectedField = 'תחום הספק הוא שדה חובה';
@@ -153,7 +169,7 @@ function UnifiedSupplierForm({
         return newErrors;
     };
 
-    const handleSubmit = () => {
+    const handleSubmit = async () => {
         const validationErrors = validateForm();
         if (Object.keys(validationErrors).length > 0) {
             setErrors(validationErrors);
@@ -165,19 +181,38 @@ function UnifiedSupplierForm({
             ...formData,
             supplier_field_id: selectedField === 'new' ? null : selectedField,
             new_supplier_field: selectedField === 'new' ? newField : null,
-            // Ensure specific field names match what backend expects if necessary
-            // Backend expects 'street' or 'street_name'. form has 'street'
             street_name: formData.street
         };
 
-        onSubmit(payload);
+        try {
+            if (mode === 'branch_manager') {
+                // Handle different field names for request API if needed
+                await api.post('/supplier-requests', {
+                    ...payload,
+                    ...extraPayload, // Merge extra payload (e.g. branch_id)
+                    supplier_name: payload.name, // Request API expects supplier_name
+                    // Ensure we don't send nulls where empty strings are expected or vice-versa
+                });
+                if (onSubmit) onSubmit(); // Notify parent
+            } else {
+                // Treasurer mode - handled by parent typically, but we can do it here or pass payload
+                // If parent provides onSubmit, we pass payload. If parent expects us to save, we save.
+                // Reusing original logic: parent (SuppliersPage.js) handles submit usually.
+                // But wait, the original passed 'data' to on submit.
+                await onSubmit(payload);
+            }
+            onClose();
+        } catch (err) {
+            console.error("Submit Error:", err);
+            setServerError(err.response?.data?.message || err.message || "שגיאה בשמירת הטופס");
+        }
     };
 
     return (
         <Modal
             isOpen={open}
             onClose={onClose}
-            title={title || (initialData ? 'עריכת ספק' : 'הוספת ספק חדש')}
+            title={title || (initialData ? 'עריכת ספק' : (mode === 'branch_manager' ? 'בקשה להוספת ספק' : 'הוספת ספק חדש'))}
             size="md"
             footer={
                 <>
@@ -187,7 +222,7 @@ function UnifiedSupplierForm({
             }
         >
             <div className="space-y-4">
-                {serverError && <div className="text-red-500">{serverError}</div>}
+                {serverError && <div className="text-red-500 mb-4 bg-red-50 p-2 rounded">{serverError}</div>}
 
                 <Input
                     name="supplier_id"
@@ -197,6 +232,7 @@ function UnifiedSupplierForm({
                     required
                     helperText="עד 9 ספרות"
                     error={errors.supplier_id}
+                    disabled={mode === 'treasurer' && initialData && !initialData.supplier_req_id} // Disable ID edit ONLY for existing supplier (not requests)
                 />
 
                 <Input
@@ -242,12 +278,7 @@ function UnifiedSupplierForm({
                         label="תנאי תשלום"
                         value={formData.payment_terms}
                         onChange={handleChange}
-                        options={[
-                            { value: 'immediate', label: 'מיידי' },
-                            { value: 'plus_15', label: 'שוטף + 15' },
-                            { value: 'plus_35', label: 'שוטף + 35' },
-                            { value: 'plus_50', label: 'שוטף + 50' }
-                        ]}
+                        options={PAYMENT_TERMS_OPTIONS}
                         required
                     />
                 )}
@@ -281,14 +312,14 @@ function UnifiedSupplierForm({
                 />
 
                 <div className="border-t pt-2 mt-2">
-                    <h4 className="text-md font-semibold mb-2">כתובת</h4>
+                    <h4 className="text-md font-semibold mb-2">כתובת {mode === 'branch_manager' && '(אופציונלי)'}</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <Input
                             name="city"
                             label="עיר"
                             value={formData.city}
                             onChange={handleChange}
-                            required
+                            required={mode === 'treasurer'}
                             error={errors.city}
                         />
                         <Input
@@ -296,7 +327,7 @@ function UnifiedSupplierForm({
                             label="רחוב"
                             value={formData.street}
                             onChange={handleChange}
-                            required
+                            required={mode === 'treasurer'}
                             error={errors.street}
                         />
                         <Input
@@ -304,7 +335,7 @@ function UnifiedSupplierForm({
                             label="מס' בית"
                             value={formData.house_no}
                             onChange={handleChange}
-                            required
+                            required={mode === 'treasurer'}
                             error={errors.house_no}
                         />
                         <Input

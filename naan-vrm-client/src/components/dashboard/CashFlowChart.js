@@ -1,4 +1,5 @@
 import React from 'react';
+import { formatCurrency } from '../../utils/formatCurrency';
 import { Bar } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -54,7 +55,7 @@ function CashFlowChart({ income = 0, expenses = 0, netCashFlow = 0 }) {
       <div className="mt-4 pt-2 border-t border-gray-100 flex justify-between items-center">
         <span className="text-gray-600 font-medium">תזרים צפוי:</span>
         <span className={`text-xl font-bold ${netCashFlow >= 0 ? 'text-green-600' : 'text-red-600'}`} dir="ltr">
-          ₪{netCashFlow.toLocaleString('he-IL')}
+          {formatCurrency(netCashFlow)}
         </span>
       </div>
     </div>

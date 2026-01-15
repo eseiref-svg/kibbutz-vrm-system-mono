@@ -31,8 +31,8 @@ const Button = ({
   // Variants
   const variantStyles = {
     primary: 'bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500 shadow-sm hover:shadow-md',
-    secondary: 'bg-gray-500 text-white hover:bg-gray-600 focus:ring-gray-400 shadow-sm hover:shadow-md',
-    success: 'bg-green-600 text-white hover:bg-green-700 focus:ring-green-500 shadow-sm hover:shadow-md',
+    secondary: 'bg-gray-400 text-white hover:bg-gray-500 focus:ring-gray-400 shadow-sm hover:shadow-md',
+    success: 'bg-green-500 text-white hover:bg-green-600 focus:ring-green-500 shadow-sm hover:shadow-md',
     danger: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500 shadow-sm hover:shadow-md',
     outline: 'bg-white border-2 border-gray-300 text-gray-700 hover:border-gray-400 hover:bg-gray-50 focus:ring-gray-400'
   };

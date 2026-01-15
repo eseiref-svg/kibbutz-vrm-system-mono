@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../api/axiosConfig';
 import Button from '../shared/Button';
-import { calculateDueDate, formatPaymentTerms } from '../../utils/paymentTerms';
+import { formatCurrency } from '../../utils/formatCurrency';
+import { calculateDueDate, formatPaymentTerms, PAYMENT_TERMS_OPTIONS } from '../../utils/paymentTerms';
 
-function SalesApprovalWidget() {
+function SalesApprovalWidget({ onRefresh }) {
   const [pendingTransactions, setPendingTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -73,6 +74,7 @@ function SalesApprovalWidget() {
       alert('✅ הבקשה אושרה בהצלחה!');
       setApprovingId(null);
       fetchPendingTransactions(); // Refresh list
+      if (onRefresh) onRefresh(); // Refresh parent dashboard
     } catch (error) {
       console.error('Error approving transaction:', error);
       alert(error.response?.data?.message || 'שגיאה באישור הבקשה');
@@ -115,6 +117,7 @@ function SalesApprovalWidget() {
       setRejectingId(null);
       setRejectionReason('');
       fetchPendingTransactions(); // Refresh list
+      if (onRefresh) onRefresh(); // Refresh parent dashboard
     } catch (error) {
       console.error('Error rejecting transaction:', error);
       alert(error.response?.data?.message || 'שגיאה בדחיית הבקשה');
@@ -158,54 +161,59 @@ function SalesApprovalWidget() {
   return (
     <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
       <h3 className="text-xl font-bold text-gray-800 mb-4">
-        בקשות ממתינות לאישור ({pendingTransactions.length})
+        בקשות לתשלום חדשות
       </h3>
 
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
+        <table className="min-w-full divide-y divide-gray-200 table-fixed">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">יישות (לקוח/ספק)</th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">מזהה</th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">סוג</th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">ענף</th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">סכום</th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">תאריך עסקה</th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">תיאור</th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">פעולות</th>
+              <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">סוג</th>
+              <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-[25%]">יישות (לקוח/ספק)</th>
+              <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">מזהה</th>
+              <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">ענף</th>
+              <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">תאריך עסקה</th>
+              <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">סכום</th>
+              <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">תיאור</th>
+              <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-[160px]">פעולות</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {pendingTransactions.map((trx) => (
               <React.Fragment key={`${trx.type}-${trx.id}`}>
-                <tr className="hover:bg-gray-50">
-                  <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    <div>{trx.entity_name}</div>
-                    {/* Assuming poc_name might not be returned in union query or needs handling, currently focusing on main fields */}
+                <tr className="hover:bg-gray-50 transition-colors">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    {trx.type === 'sale' ? (
+                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                        גבייה מלקוח
+                      </span>
+                    ) : (
+                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-orange-100 text-orange-800">
+                        תשלום לספק
+                      </span>
+                    )}
                   </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">
+                    <div>{trx.entity_name}</div>
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-500 truncate">
                     {trx.entity_identifier || `#${trx.entity_id}`}
                   </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600">
-                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${trx.type === 'sale' ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'}`}>
-                      {trx.type === 'sale' ? 'מכירה ללקוח' : 'תשלום לספק'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600">
+                  <td className="px-6 py-4 text-sm text-gray-500 truncate">
                     {trx.branch_name}
                   </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 font-semibold">
-                    ₪{parseFloat(trx.value).toLocaleString('he-IL', { minimumFractionDigits: 2 })}
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600">
+                  <td className="px-6 py-4 text-sm text-gray-500 truncate">
                     {new Date(trx.transaction_date).toLocaleDateString('he-IL')}
                   </td>
-                  <td className="px-4 py-4 text-sm text-gray-600">
+                  <td className="px-6 py-4 text-sm text-gray-900 font-bold truncate">
+                    {formatCurrency(trx.value)}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-500 truncate" title={trx.description}>
                     {trx.description || '-'}
                   </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm">
+                  <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium w-[160px]">
                     {approvingId === trx.id || rejectingId === trx.id ? (
-                      <div className="flex gap-2">
+                      <div className="flex justify-center gap-2">
                         <Button
                           variant="secondary"
                           size="sm"
@@ -215,21 +223,19 @@ function SalesApprovalWidget() {
                         </Button>
                       </div>
                     ) : (
-                      <div className="flex gap-2">
-                        <Button
-                          variant="success"
-                          size="sm"
+                      <div className="flex justify-center items-center gap-2">
+                        <button
                           onClick={() => handleApproveClick(trx)}
+                          className="border border-green-200 bg-green-50 text-green-700 hover:bg-green-100 hover:border-green-300 px-3 py-1 rounded transition-colors text-xs"
                         >
                           אשר
-                        </Button>
-                        <Button
-                          variant="danger"
-                          size="sm"
+                        </button>
+                        <button
                           onClick={() => handleRejectClick(trx)}
+                          className="border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 hover:border-red-300 px-3 py-1 rounded transition-colors text-xs"
                         >
                           דחה
-                        </Button>
+                        </button>
                       </div>
                     )}
                   </td>
@@ -238,7 +244,7 @@ function SalesApprovalWidget() {
                 {/* Approval Form Row */}
                 {approvingId === trx.id && (
                   <tr className="bg-blue-50">
-                    <td colSpan="8" className="px-4 py-4">
+                    <td colSpan="7" className="px-4 py-4">
                       <div className="space-y-4">
                         <h4 className="font-semibold text-gray-800 mb-2">פרטי אישור - {trx.type === 'sale' ? 'מכירה' : 'תשלום לספק'}</h4>
 
@@ -249,13 +255,13 @@ function SalesApprovalWidget() {
                               <h5 className="font-semibold text-gray-700 mb-2">פרטי הלקוח והעסקה:</h5>
                               <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm pt-2 border-t border-gray-200">
                                 <div>
-                                  <span className="text-gray-600">סכום ללא מע"מ:</span> <span className="font-medium">₪{parseFloat(trx.value).toLocaleString('he-IL', { minimumFractionDigits: 2 })}</span>
+                                  <span className="text-gray-600">סכום ללא מע"מ:</span> <span className="font-medium">{formatCurrency(trx.value)}</span>
                                 </div>
                                 <div>
-                                  <span className="text-gray-600">מע"מ (18%):</span> <span className="font-medium">₪{(parseFloat(trx.value) * 0.18).toLocaleString('he-IL', { minimumFractionDigits: 2 })}</span>
+                                  <span className="text-gray-600">מע"מ (18%):</span> <span className="font-medium">{formatCurrency(parseFloat(trx.value) * 0.18)}</span>
                                 </div>
                                 <div>
-                                  <span className="text-gray-600">סכום כולל מע"מ:</span> <span className="font-bold text-blue-700">₪{(parseFloat(trx.value) * 1.18).toLocaleString('he-IL', { minimumFractionDigits: 2 })}</span>
+                                  <span className="text-gray-600">סכום כולל מע"מ:</span> <span className="font-bold text-blue-700">{formatCurrency(parseFloat(trx.value) * 1.18)}</span>
                                 </div>
                               </div>
                             </div>
@@ -272,10 +278,11 @@ function SalesApprovalWidget() {
                                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                                   required
                                 >
-                                  <option value="immediate">מיידי (0 ימים)</option>
-                                  <option value="current_15">שוטף 15+ (15 ימים)</option>
-                                  <option value="current_35">שוטף 35+ (35 ימים)</option>
-                                  <option value="current_50">שוטף 50+ (50 ימים) - ברירת מחדל</option>
+                                  {PAYMENT_TERMS_OPTIONS.map(option => (
+                                    <option key={option.value} value={option.value}>
+                                      {option.label}
+                                    </option>
+                                  ))}
                                 </select>
                                 <div className="mt-2 text-sm text-blue-700 bg-blue-50 p-2 rounded border border-blue-100">
                                   <span className="font-semibold">תאריך תשלום מחושב: </span>
@@ -303,7 +310,7 @@ function SalesApprovalWidget() {
                           // Payment Request Approval (Simple Confirmation)
                           <div className="bg-white p-4 rounded border border-gray-200">
                             <p className="text-gray-700 mb-2">
-                              האם ברצונך לאשר את דרישת התשלום לספק <strong>{trx.entity_name}</strong> בסך <strong>₪{parseFloat(trx.value).toLocaleString()}</strong>?
+                              האם ברצונך לאשר את דרישת התשלום לספק <strong>{trx.entity_name}</strong> בסך <strong>{formatCurrency(trx.value)}</strong>?
                             </p>
                             <p className="text-gray-600 text-sm">
                               אישור הבקשה יהפוך אותה לסטטוס "פתוח" ויכניס אותה למעקב התשלומים.
@@ -333,7 +340,7 @@ function SalesApprovalWidget() {
                 {/* Rejection Form Row */}
                 {rejectingId === trx.id && (
                   <tr className="bg-red-50">
-                    <td colSpan="8" className="px-4 py-4">
+                    <td colSpan="7" className="px-4 py-4">
                       <div className="space-y-4">
                         <h4 className="font-semibold text-red-800 mb-2">דחיית בקשה</h4>
 

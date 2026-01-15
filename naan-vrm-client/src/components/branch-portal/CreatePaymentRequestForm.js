@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import api from '../../api/axiosConfig';
 import TransactionForm from '../shared/TransactionForm';
 
-function CreatePaymentRequestForm({ open, onClose, supplier, branchId, onSuccess }) {
+function CreatePaymentRequestForm({ open, onClose, supplier, branchId, onSuccess, autoApprove = false }) {
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
 
@@ -24,9 +24,11 @@ function CreatePaymentRequestForm({ open, onClose, supplier, branchId, onSuccess
                 supplier_id: supplier.supplier_id,
                 branch_id: branchId,
                 amount: amountIncl, // Sending the total amount including VAT
-                due_date: formData.date,
+                transaction_date: formData.date,
                 description: formData.description,
-                invoice_number: ''
+                payment_terms: formData.payment_terms,
+                invoice_number: '',
+                auto_approve: !!autoApprove // Flag for server
             });
 
             onSuccess();
@@ -43,7 +45,7 @@ function CreatePaymentRequestForm({ open, onClose, supplier, branchId, onSuccess
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-50">
             <div className="relative w-full max-w-4xl px-4">
                 <TransactionForm
-                    title={`יצירת דרישת תשלום - ${supplier?.name}`}
+                    title={`יצירת דרישת תשלום עבור ${supplier?.name}`}
                     onSubmit={handleSubmit}
                     onCancel={onClose}
                     isSubmitting={loading}

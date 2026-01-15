@@ -1,4 +1,5 @@
 import MasavWidget from './MasavWidget';
+import { formatCurrency } from '../../utils/formatCurrency';
 
 
 const PaymentStatsCards = ({ stats, loading, onRefresh }) => {
@@ -15,13 +16,7 @@ const PaymentStatsCards = ({ stats, loading, onRefresh }) => {
     );
   }
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('he-IL', {
-      style: 'currency',
-      currency: 'ILS',
-      minimumFractionDigits: 0,
-    }).format(amount || 0);
-  };
+  // Removed local formatCurrency
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">

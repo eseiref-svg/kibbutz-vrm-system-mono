@@ -4,6 +4,8 @@ import Button from '../components/shared/Button';
 import Modal from '../components/shared/Modal';
 import Input from '../components/shared/Input';
 import Select from '../components/shared/Select';
+import UsersTable from '../components/admin/UsersTable';
+import UserDetailsCard from '../components/admin/UserDetailsCard';
 import { validatePhoneNumber, validateEmail, validateRequired, validatePassword } from '../utils/validation';
 
 function UserManagementPage() {
@@ -19,6 +21,9 @@ function UserManagementPage() {
   const [currentUser, setCurrentUser] = useState(null);
   const [validationErrors, setValidationErrors] = useState({});
 
+  // Selection for Details Card
+  const [selectedUser, setSelectedUser] = useState(null);
+
   const roleMap = {
     'admin': 'Admin',
     'treasurer': 'גזבר',
@@ -26,14 +31,19 @@ function UserManagementPage() {
     'branch_manager': 'מנהל ענף',
     'community_manager': 'מנהל קהילה'
   };
+
   const fetchUsers = () => {
     setLoading(true);
-    // Ensure we fetch users logic here handled role string from backend
     api.get('/users')
       .then(response => {
         setUsers(response.data);
         setFilteredUsers(response.data);
         setLoading(false);
+        // If a user is selected, refresh their data
+        if (selectedUser) {
+          const updatedSelected = response.data.find(u => u.user_id === selectedUser.user_id);
+          if (updatedSelected) setSelectedUser(updatedSelected);
+        }
       })
       .catch(err => {
         console.error("Error fetching users:", err);
@@ -162,14 +172,32 @@ function UserManagementPage() {
     }
   };
 
-  const handleDeactivate = async (userId) => {
-    if (window.confirm('האם אתה בטוח שברצונך להשבית משתמש זה?')) {
+  // UPDATED: Toggle Status (Deactivate/Activate) instead of Delete
+  const handleStatusToggle = async (user) => {
+    const newStatus = user.status === 'active' ? 'inactive' : 'active';
+    const actionName = newStatus === 'active' ? 'להפעיל' : 'להשבית';
+
+    if (window.confirm(`האם אתה בטוח שברצונך ${actionName} משתמש זה?`)) {
       try {
-        await api.delete(`/users/${userId}`);
+        // We reuse the update endpoint since it supports status update
+        // We get full user data implicitly or need to send full object if PUT replaces entire resource.
+        // Server PUT endpoint: expects full body usually, but let's see.
+        // It does `UPDATE "user" SET...` with all fields. Ideally we only send changed fields if backend supported PATCH, 
+        // but it's a PUT. So we should send the user object with updated status.
+
+        // However, we don't have the password here (and shouldn't send it empty if not changing).
+        // Checks on server: it updates email, phone, role, status. It does NOT update password in PUT `/api/users/:id`.
+        // So safe to send existing user fields.
+
+        await api.put(`/users/${user.user_id}`, {
+          ...user,
+          status: newStatus
+        });
+
         fetchUsers();
       } catch (err) {
-        console.error("Error deactivating user:", err);
-        alert('השבתת המשתמש נכשלה.');
+        console.error("Error updating user status:", err);
+        alert('עדכון הסטטוס נכשל.');
       }
     }
   };
@@ -191,17 +219,19 @@ function UserManagementPage() {
   useEffect(() => {
     // Load branches
     api.get('/branches').then(res => setBranches(res.data)).catch(err => console.error(err));
-  }, [isModalOpen]); // Reload when modal opens to get fresh list
+  }, [isModalOpen]);
 
   // ... (Inside Modal)
 
   return (
     <div>
-      <div className="flex flex-col md:flex-row justify-between items-center mb-6 pb-4 border-b-2 border-gray-200 gap-4">
+      <div className="flex flex-col md:flex-row justify-between items-center mb-6 pb-4 border-b border-gray-200 gap-4">
         <h2 className="text-2xl md:text-3xl font-bold text-gray-800">ניהול משתמשים</h2>
-        <Button variant="success" onClick={() => handleOpenModal()} className="w-full md:w-auto">
-          הוסף משתמש חדש
-        </Button>
+        {!selectedUser && (
+          <Button variant="success" onClick={() => handleOpenModal()} className="w-full md:w-auto">
+            הוסף משתמש חדש
+          </Button>
+        )}
       </div>
 
       {loading && <p>טוען משתמשים...</p>}
@@ -209,75 +239,59 @@ function UserManagementPage() {
 
       {!loading && !error && (
         <>
-          <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200 mb-6">
-            <h3 className="text-xl font-bold text-gray-800 mb-4 pb-2 border-b">חיפוש משתמשים</h3>
-            <div className="flex flex-col sm:flex-row gap-3 items-stretch">
-              <Select
-                value={searchCriteria}
-                onChange={(e) => setSearchCriteria(e.target.value)}
-                options={[
-                  { value: 'name', label: 'לפי שם' },
-                  { value: 'email', label: 'לפי אימייל' }
-                ]}
-                fullWidth={false}
-                className="w-full sm:w-40"
+          {selectedUser ? (
+            <UserDetailsCard
+              user={selectedUser}
+              onBack={() => setSelectedUser(null)}
+              onEdit={handleOpenModal}
+              onPasswordReset={handlePasswordReset}
+              onStatusToggle={handleStatusToggle}
+            />
+          ) : (
+            <>
+              <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200 mb-6">
+                <h3 className="text-xl font-bold text-gray-800 mb-4 pb-2 border-b">חיפוש משתמשים</h3>
+                <div className="flex flex-col sm:flex-row gap-3 items-stretch">
+                  <Select
+                    value={searchCriteria}
+                    onChange={(e) => setSearchCriteria(e.target.value)}
+                    options={[
+                      { value: 'name', label: 'לפי שם' },
+                      { value: 'email', label: 'לפי אימייל' }
+                    ]}
+                    fullWidth={false}
+                    className="w-full sm:w-40"
+                  />
+
+                  <Input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder={searchCriteria === 'name' ? 'הקלד שם משתמש...' : 'הקלד אימייל...'}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                    className="flex-grow w-full"
+                    showClearButton={true}
+                    onClear={handleClearSearch}
+                  />
+
+                  <Button
+                    onClick={handleSearch}
+                    variant="primary"
+                    className="whitespace-nowrap w-full sm:w-auto"
+                  >
+                    חיפוש
+                  </Button>
+                </div>
+              </div>
+
+              <UsersTable
+                users={filteredUsers}
+                onStatusToggle={handleStatusToggle}
+                onEdit={handleOpenModal}
+                onRowClick={setSelectedUser}
               />
-
-              <Input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={searchCriteria === 'name' ? 'הקלד שם משתמש...' : 'הקלד אימייל...'}
-                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                className="flex-grow w-full"
-                showClearButton={true}
-                onClear={handleClearSearch}
-              />
-
-              <Button
-                onClick={handleSearch}
-                variant="primary"
-                className="whitespace-nowrap w-full sm:w-auto"
-              >
-                חיפוש
-              </Button>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-lg p-4 border border-gray-200 overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead className="bg-gray-100">
-                <tr>
-                  <th className="py-2 px-3 text-right font-semibold">שם מלא</th>
-                  <th className="py-2 px-3 text-right font-semibold">אימייל</th>
-                  <th className="py-2 px-3 text-right font-semibold">תפקיד</th>
-                  <th className="py-2 px-3 text-right font-semibold">סטטוס</th>
-                  <th className="py-2 px-3 text-right font-semibold">פעולות</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredUsers.map(user => (
-                  <tr key={user.user_id} className="border-b">
-                    <td className="py-2 px-3">{user.first_name} {user.surname}</td>
-                    <td className="py-2 px-3">{user.email}</td>
-                    <td className="py-2 px-3">{roleMap[user.role] || user.role}</td>
-                    <td className="py-2 px-3">{user.status === 'active' ? 'פעיל' : 'לא פעיל'}</td>
-                    <td className="py-2 px-3">
-                      <div className="flex gap-2">
-                        <Button size="sm" variant="outline" onClick={() => handleOpenModal(user)}>ערוך</Button>
-                        {user.status === 'active' &&
-                          <>
-                            <Button size="sm" variant="danger" onClick={() => handleDeactivate(user.user_id)}>השבת</Button>
-                            <Button size="sm" variant="secondary" onClick={() => handlePasswordReset(user.user_id)}>שלח איפוס</Button>
-                          </>
-                        }
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+            </>
+          )}
         </>
       )}
 

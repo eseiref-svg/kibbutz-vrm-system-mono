@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../api/axiosConfig';
+import { formatCurrency } from '../../utils/formatCurrency';
 
 function RecentSalesWidget({ branchId }) {
   const [sales, setSales] = useState([]);
@@ -39,9 +40,7 @@ function RecentSalesWidget({ branchId }) {
     }
   };
 
-  const formatCurrency = (value) => {
-    return `₪${parseFloat(value).toLocaleString('he-IL', { minimumFractionDigits: 2 })}`;
-  };
+  // Removed local formatCurrency
 
   const formatDate = (dateString) => {
     if (!dateString) return '-';

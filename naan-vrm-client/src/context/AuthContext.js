@@ -17,7 +17,7 @@ export const AuthProvider = ({ children }) => {
         if (decoded.exp * 1000 < Date.now()) {
           localStorage.removeItem('token');
         } else {
-          setUser({ id: decoded.user.id, role: decoded.user.role });
+          setUser({ id: decoded.user.id, role: decoded.user.role, branch_business: decoded.user.branch_business });
         }
       } catch (e) {
         localStorage.removeItem('token');
@@ -29,7 +29,7 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('token', token);
     const decoded = jwtDecode(token);
     // Here we save all important user information
-    setUser({ id: decoded.user.id, role: decoded.user.role });
+    setUser({ id: decoded.user.id, role: decoded.user.role, branch_business: decoded.user.branch_business });
   };
 
   const logout = () => {

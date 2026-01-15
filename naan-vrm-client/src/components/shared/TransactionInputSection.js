@@ -1,4 +1,6 @@
 import React from 'react';
+import { formatCurrency } from '../../utils/formatCurrency';
+import { calculateDueDate, formatPaymentTerms } from '../../utils/paymentTerms';
 
 const VAT_RATE = 0.18;
 
@@ -21,28 +23,7 @@ function TransactionInputSection({
     const amountInclVat = amountExclVat * (1 + VAT_RATE);
 
     // Calculate Due Date Logic (Internal)
-    const calculateDueDate = (dateStr, terms) => {
-        if (!dateStr && showDate) return null; // If showing date picker and it's empty
-        // If date is hidden (ClientRequest), we might rely on "today" or just not show? 
-        // Actually ClientRequest implies "Assuming approved today context" or similar.
-        // But for safe logic:
-        const baseDate = dateStr ? new Date(dateStr) : new Date();
-
-        if (!terms || terms === 'immediate') return baseDate;
-
-        // "Shotef" logic (End of Month)
-        const eom = new Date(baseDate.getFullYear(), baseDate.getMonth() + 1, 0);
-
-        let daysToAdd = 0;
-        if (terms === 'plus_30') daysToAdd = 30;
-        if (terms === 'plus_45') daysToAdd = 45;
-        if (terms === 'plus_60') daysToAdd = 60;
-        if (terms === 'plus_90') daysToAdd = 90;
-
-        eom.setDate(eom.getDate() + daysToAdd);
-        return eom;
-    };
-
+    // Removed internal logic to use centralized utility
     const dueDate = calculateDueDate(date, paymentTerms);
 
     const handleInputChange = (e) => {
@@ -53,28 +34,9 @@ function TransactionInputSection({
     return (
         <div className={`bg-blue-50 border border-blue-200 rounded-lg p-6 shadow-sm ${className}`}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                {/* Right Column (Visual First in RTL) */}
-                <div className="order-2 md:order-1">
-                    {showDate && (
-                        <>
-                            <label className="block text-gray-700 text-sm font-bold mb-2">
-                                {dateLabel} *
-                            </label>
-                            <input
-                                type="date"
-                                name="date"
-                                value={date}
-                                onChange={handleInputChange}
-                                className="w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white"
-                                required
-                            />
-                        </>
-                    )}
-                </div>
-
-                {/* Left Column */}
-                <div className="order-1 md:order-2">
-                    <label className="block text-gray-700 text-sm font-bold mb-2">
+                {/* Right Column (Amount) */}
+                <div>
+                    <label className="block text-gray-700 text-sm font-bold mb-2 text-right">
                         {amountLabel} *
                     </label>
                     <div className="relative">
@@ -91,42 +53,56 @@ function TransactionInputSection({
                         />
                     </div>
                 </div>
+
+                {/* Left Column (Date) */}
+                <div>
+                    {showDate && (
+                        <>
+                            <label className="block text-gray-700 text-sm font-bold mb-2 text-right">
+                                {dateLabel} *
+                            </label>
+                            <input
+                                type="date"
+                                name="date"
+                                value={date}
+                                onChange={handleInputChange}
+                                className="w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white"
+                                required
+                            />
+                        </>
+                    )}
+                </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                {/* Calculated Total */}
-                <div className="order-2 md:order-1">
-                    <label className="block text-gray-700 text-sm font-bold mb-2">
+                {/* Right Column (Total) */}
+                <div>
+                    <label className="block text-gray-700 text-sm font-bold mb-2 text-right">
                         סכום לתשלום (כולל מע"מ)
                     </label>
                     <div className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-100 text-gray-700 font-medium text-left dir-ltr">
-                        {amountInclVat.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {formatCurrency(amountInclVat)}
                     </div>
-                    <p className="text-xs text-gray-500 mt-1 mb-2">
+                    <p className="text-xs text-gray-500 mt-1 mb-2 text-right">
                         מחושב אוטומטית: {(1 + VAT_RATE).toFixed(2)} x
                     </p>
                 </div>
 
-                {/* Expected Payment / Custom Slot */}
-                <div className="order-1 md:order-2">
+                {/* Left Column (Prediction/Terms) */}
+                <div>
                     {/* Render Calculated Date Box automatically */}
-                    <div className="w-full px-3 py-2 border border-blue-200 rounded-lg bg-blue-50 text-blue-800 text-sm mb-2">
+                    <div className="w-full px-3 py-2 border border-blue-200 rounded-lg bg-blue-50 text-blue-800 text-sm mb-2 text-right">
                         {dueDate
-                            ? `צפי תשלום: ${dueDate.toLocaleDateString('he-IL')} (${paymentTerms === 'immediate' ? 'מיידי' : paymentTerms ? `שוטף + ${paymentTerms.replace('plus_', '')}` : 'ללא תנאי תשלום'})`
+                            ? `צפי תשלום: ${dueDate.toLocaleDateString('he-IL')} (${formatPaymentTerms(paymentTerms)})`
                             : 'נא לבחור תאריך עסקה'
                         }
                     </div>
-                    {/* Render extra children (like Payment Terms dropdown) below or above? 
-                        The user put dropdown INSTEAD of info in ClientRequest. 
-                        But logically, if I select terms, I want to see the result.
-                        So I render both.
-                    */}
                     {children}
                 </div>
             </div>
 
             <div>
-                <label className="block text-gray-700 text-sm font-bold mb-2">
+                <label className="block text-gray-700 text-sm font-bold mb-2 text-right">
                     {descriptionLabel}
                 </label>
                 <textarea

@@ -15,6 +15,7 @@ function TransactionForm({
         amount: '', // Amount excluding VAT
         date: new Date().toISOString().split('T')[0],
         description: '',
+        payment_terms: paymentTerms || 'immediate',
         ...initialData
     });
 
@@ -24,14 +25,11 @@ function TransactionForm({
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        // Calculate amountInclVat here if needed, but we pass raw data usually.
-        // Assuming backend handles logic or parent handles logic.
-        // Parent CreatePaymentRequestForm currently handles 'amount' * 1.18 logic in 'handleSubmit'.
         onSubmit(formData);
     };
 
     return (
-        <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
+        <form onSubmit={handleSubmit} className="bg-blue-50 rounded-xl shadow-lg p-6 border border-blue-200">
             <h3 className="text-xl font-bold text-gray-800 mb-6">{title}</h3>
 
             <TransactionInputSection
@@ -39,14 +37,16 @@ function TransactionForm({
                 date={formData.date}
                 description={formData.description}
                 onChange={handleSectionChange}
-                paymentTerms={paymentTerms}
-            />
+                paymentTerms={paymentTerms} // Use prop directly as it is read-only
+            >
+                {/* Terms are now read-only */}
+            </TransactionInputSection>
 
-            <div className="flex gap-4 pt-6 mt-2 border-t border-gray-100">
+            <div className="flex gap-4 pt-6 mt-2 border-t border-blue-100">
                 <Button type="submit" variant="success" className="px-8" disabled={isSubmitting}>
                     {isSubmitting ? 'שולח...' : submitLabel}
                 </Button>
-                <Button type="button" variant="secondary" onClick={onCancel} className="bg-gray-400 text-white hover:bg-gray-500 border-none">
+                <Button type="button" variant="secondary" onClick={onCancel}>
                     ביטול
                 </Button>
             </div>

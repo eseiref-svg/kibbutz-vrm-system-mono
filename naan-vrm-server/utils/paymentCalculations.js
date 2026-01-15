@@ -38,7 +38,7 @@ function calculateDueDate(transactionDate, terms) {
         else if (terms === 'plus_30') creditDays = 30; // Legacy support
         else if (terms === 'plus_35') creditDays = 35;
         else if (terms === 'plus_50') creditDays = 50;
-        else filters = getCreditDays(terms); // Fallback to regex
+        else creditDays = getCreditDays(terms); // Fallback to regex
     } else if (typeof terms === 'number') {
         creditDays = terms;
     }

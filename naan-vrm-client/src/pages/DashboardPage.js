@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../api/axiosConfig';
+import { formatCurrency } from '../utils/formatCurrency';
 import InfoCard from '../components/dashboard/InfoCard';
 import BankBalanceWidget from '../components/dashboard/BankBalanceWidget';
 import CashFlowChart from '../components/dashboard/CashFlowChart';
@@ -125,14 +126,14 @@ function DashboardPage() {
 
     doc.text(`סיכום לוח מחוונים - ${new Date().toLocaleDateString('he-IL')}`, 105, 15, { align: 'center' });
 
-    doc.text(`יתרה לתשלום לספקים: ${parseFloat(summaryData.totalSupplierBalance).toLocaleString('he-IL')} ש"ח`, 20, 30);
+    doc.text(`יתרה לתשלום לספקים: ${formatCurrency(summaryData.totalSupplierBalance)}`, 20, 30);
     doc.text(`חשבוניות בחריגה: ${summaryData.overdueInvoices}`, 20, 40);
     doc.text(`בקשות ספקים ממתינות: ${requests.length}`, 20, 50);
 
     autoTable(doc, {
       startY: 60,
       head: [['ענף', 'סך הוצאות (ש"ח)']],
-      body: summaryData.expensesByBranch.map(e => [e.name, parseFloat(e.total_expenses).toLocaleString('he-IL')]),
+      body: summaryData.expensesByBranch.map(e => [e.name, formatCurrency(e.total_expenses)]),
       styles: { font: "arial", halign: 'right' },
       headStyles: { fillColor: [41, 128, 185] },
     });
@@ -216,17 +217,17 @@ function DashboardPage() {
               <Link to="/payments" className="block hover:bg-gray-50 p-2 rounded transition-colors h-full flex flex-col">
                 <div className="text-center mb-4">
                   <div className={`text-3xl font-extrabold ${summaryData.totalSupplierBalance >= 0 ? 'text-green-600' : 'text-red-600'}`} dir="ltr">
-                    ₪{parseFloat(summaryData.totalSupplierBalance).toLocaleString('he-IL')}
+                    {formatCurrency(summaryData.totalSupplierBalance)}
                   </div>
                   <p className="text-gray-600 text-sm mt-1">ערך נטו (הכנסות - הוצאות)</p>
                 </div>
 
                 <div className="text-orange-600 font-bold mb-4 text-right">
-                  תשלומים קרובים (החודש): ₪{parseFloat(summaryData.upcomingPayments || 0).toLocaleString('he-IL')}
+                  תשלומים קרובים (החודש): {formatCurrency(summaryData.upcomingPayments || 0)}
                 </div>
 
                 <div className="text-red-600 font-bold mb-4 text-right">
-                  {summaryData.overdueInvoices} חשבוניות בחריגה
+                  {summaryData.overdueInvoices} חשבוניות באיחור
                 </div>
 
                 <div className="text-blue-600 text-sm font-medium text-center mt-auto">
@@ -254,7 +255,7 @@ function DashboardPage() {
             onApproveRequest={handleApproveClientRequest}
           />
 
-          <SalesApprovalWidget />
+          <SalesApprovalWidget onRefresh={fetchData} />
 
           <UnifiedSupplierForm
             open={showAddSupplierForm}

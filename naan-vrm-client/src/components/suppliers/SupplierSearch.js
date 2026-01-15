@@ -4,7 +4,7 @@ import Input from '../shared/Input';
 import Select from '../shared/Select';
 
 function SupplierSearch({ query, setQuery, criteria, setCriteria, onSearch, onClear }) {
-  
+
   const getPlaceholder = () => {
     if (criteria === 'name') {
       return 'הקלד שם ספק...';
@@ -27,20 +27,21 @@ function SupplierSearch({ query, setQuery, criteria, setCriteria, onSearch, onCl
       <h3 className="text-xl font-bold text-gray-800 mb-4 pb-2 border-b">חיפוש ספק מאושר</h3>
       <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
         <div className="sm:col-span-2">
-          <Select 
+          <Select
             label="סוג חיפוש"
-            value={criteria} 
-            onChange={(e) => setCriteria(e.target.value)} 
+            value={criteria}
+            onChange={(e) => setCriteria(e.target.value)}
             options={[
               { value: 'name', label: 'לפי שם' },
-              { value: 'tag', label: 'לפי תג' }
+              { value: 'tag', label: 'לפי תג' },
+              { value: 'id', label: 'לפי ח.פ.' }
             ]}
             fullWidth={true}
           />
         </div>
 
         <div className="sm:col-span-8">
-          <Input 
+          <Input
             type="text"
             label="הקלד שם ספק..."
             value={query}
@@ -53,8 +54,8 @@ function SupplierSearch({ query, setQuery, criteria, setCriteria, onSearch, onCl
         </div>
 
         <div className="sm:col-span-2">
-          <Button 
-            onClick={onSearch} 
+          <Button
+            onClick={onSearch}
             variant="primary"
             fullWidth={true}
           >

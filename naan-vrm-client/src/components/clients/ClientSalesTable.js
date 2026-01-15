@@ -1,5 +1,7 @@
 import React from 'react';
+import { LuCheck } from 'react-icons/lu';
 import api from '../../api/axiosConfig';
+import { formatCurrency } from '../../utils/formatCurrency';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 
@@ -47,7 +49,7 @@ function ClientSalesTable({ sales, onRefresh }) {
       doc.setFontSize(14);
       doc.text('פרטי התשלום:', 20, 130);
       doc.setFontSize(11);
-      doc.text(`סכום לתשלום: ₪${parseFloat(data.value).toLocaleString('he-IL')}`, 20, 140);
+      doc.text(`סכום לתשלום: ${formatCurrency(data.value)}`, 20, 140);
       doc.text(`תאריך יעד: ${new Date(data.due_date).toLocaleDateString('he-IL')}`, 20, 150);
       if (data.payment_terms) doc.text(`תנאי תשלום: ${data.payment_terms}`, 20, 160);
       if (data.description) doc.text(`תיאור: ${data.description}`, 20, 170);
@@ -79,22 +81,26 @@ function ClientSalesTable({ sales, onRefresh }) {
       <table className="min-w-full divide-y divide-gray-200">
         <thead className="bg-gray-50">
           <tr>
-            <th className="px-6 py-3 text-right text-xs font-bold text-gray-700 uppercase">מספר מכירה</th>
-            <th className="px-6 py-3 text-right text-xs font-bold text-gray-700 uppercase">ענף</th>
+            <th className="px-6 py-3 text-right text-xs font-bold text-gray-700 uppercase">מספר עסקה</th>
+            <th className="px-6 py-3 text-right text-xs font-bold text-gray-700 uppercase">סוג עסקה</th>
             <th className="px-6 py-3 text-right text-xs font-bold text-gray-700 uppercase">סכום</th>
             <th className="px-6 py-3 text-right text-xs font-bold text-gray-700 uppercase">תאריך יעד</th>
             <th className="px-6 py-3 text-right text-xs font-bold text-gray-700 uppercase">תאריך תשלום בפועל</th>
             <th className="px-6 py-3 text-right text-xs font-bold text-gray-700 uppercase">סטטוס</th>
-            <th className="px-6 py-3 text-right text-xs font-bold text-gray-700 uppercase">פעולות</th>
+            <th className="px-6 py-3 text-center text-xs font-bold text-gray-700 uppercase">פעולות</th>
           </tr>
         </thead>
         <tbody className="bg-white divide-y divide-gray-200">
           {sales.map((sale) => (
             <tr key={sale.sale_id} className="hover:bg-gray-50">
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{sale.sale_id}</td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{sale.branch_name}</td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                  מכירה
+                </span>
+              </td>
               <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-green-700">
-                ₪{parseFloat(sale.value).toLocaleString('he-IL')}
+                {formatCurrency(sale.value)}
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
                 {new Date(sale.due_date).toLocaleDateString('he-IL')}
@@ -105,21 +111,25 @@ function ClientSalesTable({ sales, onRefresh }) {
               <td className="px-6 py-4 whitespace-nowrap">
                 {getStatusBadge(sale.status)}
               </td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
-                <button
-                  onClick={() => handleGeneratePDF(sale.sale_id)}
-                  className="text-blue-600 hover:text-blue-900 font-semibold ml-3"
-                >
-                  PDF
-                </button>
-                {sale.status === 'open' && (
+              <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
+                <div className="flex justify-center items-center gap-2">
                   <button
-                    onClick={() => handleMarkPaid(sale.sale_id)}
-                    className="text-green-600 hover:text-green-900 font-semibold"
+                    onClick={() => handleGeneratePDF(sale.sale_id)}
+                    className="border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:border-blue-300 px-3 py-1 rounded transition-colors text-xs"
+                    title="הפק דרישת תשלום (PDF)"
                   >
-                    ✓ סמן כשולם
+                    PDF
                   </button>
-                )}
+                  {sale.status === 'open' && (
+                    <button
+                      onClick={() => handleMarkPaid(sale.sale_id)}
+                      className="text-green-600 hover:text-green-900 transition-colors"
+                      title="סמן כשולם"
+                    >
+                      <LuCheck className="w-5 h-5" />
+                    </button>
+                  )}
+                </div>
               </td>
             </tr>
           ))}
