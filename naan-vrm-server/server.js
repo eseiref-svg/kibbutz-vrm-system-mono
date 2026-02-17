@@ -795,14 +795,41 @@ app.post('/api/supplier-fields', async (req, res) => {
 app.get('/api/branches/:id/balance', async (req, res) => {
   try {
     const { id } = req.params;
-    const result = await db.query(
-      'SELECT b.name, bal.debit, bal.credit FROM branch b JOIN balance bal ON b.balance_id = bal.balance_id WHERE b.branch_id = $1',
+
+    // Get branch basic info
+    const branchResult = await db.query(
+      'SELECT name, budget, business FROM branch WHERE branch_id = $1',
       [id]
     );
-    if (result.rowCount === 0) {
+
+    if (branchResult.rowCount === 0) {
       return res.status(404).json({ message: "Branch not found" });
     }
-    res.json(result.rows[0]);
+
+    const branch = branchResult.rows[0];
+
+    // Calculate credit and debit from actual PAID transactions
+    const transResult = await db.query(`
+      SELECT 
+        SUM(CASE WHEN s.sale_id IS NOT NULL THEN ABS(t.value) ELSE 0 END) as credit,
+        SUM(CASE WHEN pr.payment_req_id IS NOT NULL THEN ABS(t.value) ELSE 0 END) as debit
+      FROM transaction t
+      LEFT JOIN payment_req pr ON t.transaction_id = pr.transaction_id AND pr.branch_id = $1
+      LEFT JOIN sale s ON t.transaction_id = s.transaction_id AND s.branch_id = $1
+      WHERE t.status = 'paid'
+        AND (pr.branch_id = $1 OR s.branch_id = $1)
+    `, [id]);
+
+    const financials = transResult.rows[0];
+
+    // Return combined data
+    res.json({
+      name: branch.name,
+      budget: branch.budget,
+      business: branch.business,
+      credit: financials.credit || 0,
+      debit: financials.debit || 0
+    });
   } catch (err) {
     console.error(err.message);
     res.status(500).send('Server Error');
@@ -812,14 +839,16 @@ app.get('/api/branches/:id/balance', async (req, res) => {
 app.get('/api/branches/:id/transactions', async (req, res) => {
   try {
     const { id } = req.params;
+    const limit = parseInt(req.query.limit) || 10;
+
     const result = await db.query(
-      `SELECT t.transaction_id, t.value, t.due_date, t.status, s.name as supplier_name
+      `SELECT t.transaction_id, t.value, t.due_date, t.status, t.description, s.name as supplier_name, s.supplier_id
          FROM transaction t
          JOIN payment_req pr ON t.transaction_id = pr.transaction_id
          JOIN supplier s ON pr.supplier_id = s.supplier_id
          WHERE pr.branch_id = $1
-         ORDER BY t.due_date DESC LIMIT 5`,
-      [id]
+         ORDER BY t.due_date DESC LIMIT $2`,
+      [id, limit]
     );
     res.json(result.rows);
   } catch (err) {
@@ -920,10 +949,80 @@ app.get('/api/suppliers/search', async (req, res) => {
     }
 
     sql += ` GROUP BY s.supplier_id, a.address_id, sf.supplier_field_id`;
-    sql += ` ORDER BY s.name ASC`;
 
-    const result = await db.query(sql, params);
-    res.json(result.rows);
+    // HAVING Filters (Aggregates)
+    const { min_reviews, max_rating, min_rating_gt } = req.query;
+    let havingClauses = [];
+
+    if (min_reviews) {
+      havingClauses.push(`COUNT(r.review_id) >= $${paramIndex}`);
+      params.push(parseInt(min_reviews));
+      paramIndex++;
+    }
+
+    if (max_rating) {
+      havingClauses.push(`COALESCE(AVG(r.rate), 0) < $${paramIndex}`);
+      params.push(parseFloat(max_rating));
+      paramIndex++;
+    }
+
+    if (min_rating_gt) {
+      havingClauses.push(`COALESCE(AVG(r.rate), 0) > $${paramIndex}`);
+      params.push(parseFloat(min_rating_gt));
+      paramIndex++;
+    }
+
+    if (havingClauses.length > 0) {
+      sql += ` HAVING ${havingClauses.join(' AND ')}`;
+    }
+
+    // Pagination
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = (page - 1) * limit;
+
+    // Clone SQL for count before adding Order/Limit
+    // We need to count based on the SAME filters.
+    // However, existing SQL has GROUP BY and HAVING.
+    // Counting with Group By/Having is complex (COUNT(DISTINCT) might be needed over subquery).
+    // Let's use a CTE or Subquery logic for safety, OR if simpler:
+    // The current query groups by supplier_id. So number of rows = number of suppliers.
+
+    // Let's construct the final query with LIMIT/OFFSET
+    const finalSql = sql + ` ORDER BY s.name ASC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    const result = await db.query(finalSql, [...params, limit, offset]);
+
+    // Calculate Total (Simplest way without complex rewrite: Count the full query result without limit?)
+    // Or simpler: COUNT(*) OVER() in the main query? 
+    // COUNT(*) OVER() gets total count before LIMIT applied. Very efficient in Postgres.
+
+    // Let's Rewrite using window function for count to avoid two queries or complex parsing
+    // But we need to be careful with GROUP BY.
+    // If we add details count...
+    // Let's try separate count query or full scan if simpler?
+    // Given the having clauses, a separate count query is tricky without duplicating logic.
+    // COUNT(*) OVER() is best.
+
+    // RE-WRITING sql construction to include total count:
+    // Actually, SQL variable is used. Let's append LIMIT/OFFSET to it for 'result'.
+    // And for 'total', we can look at a window function, BUT 'sql' string is already built.
+
+    // Alternative: Wrap the whole thing in a count?
+    // `SELECT COUNT(*) FROM (${sql}) as total_count_alias` matching params.
+    // This handles Group By/Having correctly.
+
+    const countResult = await db.query(`SELECT COUNT(*) FROM (${sql}) as total_table`, params);
+    const total = parseInt(countResult.rows[0].count);
+
+    // Execute limited query
+    const limitedResult = await db.query(sql + ` ORDER BY s.name ASC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`, [...params, limit, offset]);
+
+    res.json({
+      data: limitedResult.rows,
+      total: total,
+      page: page,
+      limit: limit
+    });
   } catch (err) {
     console.error(err.message);
     res.status(500).send('Server Error');
@@ -969,8 +1068,10 @@ app.get('/api/suppliers/:id/transactions', async (req, res) => {
   try {
     const { id } = req.params;
     const result = await db.query(
-      `SELECT t.* FROM transaction t
+      `SELECT t.*, b.name as branch_name 
+         FROM transaction t
          JOIN payment_req pr ON t.transaction_id = pr.transaction_id
+         LEFT JOIN branch b ON pr.branch_id = b.branch_id
          WHERE pr.supplier_id = $1
          ORDER BY t.due_date DESC`,
       [id]
@@ -1555,7 +1656,7 @@ app.get('/api/dashboard/summary', async (req, res) => {
     const balanceResult = await db.query(balanceQuery);
 
     const expensesQuery = `
-        SELECT b.name, SUM(t.value) as total_expenses
+        SELECT b.name, SUM(ABS(t.value)) as total_expenses
         FROM transaction t
         JOIN payment_req pr ON t.transaction_id = pr.transaction_id
         JOIN branch b ON pr.branch_id = b.branch_id
@@ -1579,13 +1680,16 @@ app.get('/api/dashboard/summary', async (req, res) => {
 
     // Upcoming Payments (This Month): Open Expenses Only
     const upcomingQuery = `
-      SELECT COALESCE(SUM(t.value), 0) as upcoming_payments
+      SELECT 
+        COALESCE(SUM(ABS(t.value)), 0) as upcoming_payments
       FROM transaction t
-      JOIN payment_req pr ON t.transaction_id = pr.transaction_id
+      LEFT JOIN sale s ON t.transaction_id = s.transaction_id
+      LEFT JOIN payment_req pr ON t.transaction_id = pr.transaction_id
       WHERE 
-        t.status = 'open' 
-        AND t.due_date >= DATE_TRUNC('month', CURRENT_DATE)
-        AND t.due_date < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'
+        (t.status = 'open' OR t.status = 'paid')
+        AND t.due_date >= CURRENT_DATE
+        AND t.due_date < CURRENT_DATE + INTERVAL '1 month'
+        AND pr.payment_req_id IS NOT NULL
     `;
     const upcomingResult = await db.query(upcomingQuery);
 
@@ -1904,13 +2008,18 @@ app.get('/api/notifications/pending-requests-count', async (req, res) => {
 app.get('/api/notifications', async (req, res) => {
   try {
     const userId = req.user.id; // User ID from token
-    const result = await db.query(
-      `SELECT * FROM notification 
-         WHERE user_id = $1 
-         ORDER BY created_at DESC 
-         LIMIT 50`,
-      [userId]
-    );
+    const userRole = req.user.role;
+
+    let sql = `SELECT * FROM notification WHERE user_id = $1`;
+
+    // Filter for Branch Managers
+    if (userRole === 'branch_manager') {
+      sql += ` AND type != 'supplier_quality' AND message NOT LIKE '%איכות ספק%'`;
+    }
+
+    sql += ` ORDER BY created_at DESC LIMIT 50`;
+
+    const result = await db.query(sql, [userId]);
     res.json(result.rows);
   } catch (err) {
     console.error(err.message);
@@ -1921,12 +2030,18 @@ app.get('/api/notifications', async (req, res) => {
 app.get('/api/notifications/unread', async (req, res) => {
   try {
     const userId = req.user.id;
-    const result = await db.query(
-      `SELECT * FROM notification 
-         WHERE user_id = $1 AND is_read = FALSE 
-         ORDER BY created_at DESC`,
-      [userId]
-    );
+    const userRole = req.user.role;
+
+    let sql = `SELECT * FROM notification WHERE user_id = $1 AND is_read = FALSE`;
+
+    // Filter for Branch Managers
+    if (userRole === 'branch_manager') {
+      sql += ` AND type != 'supplier_quality' AND message NOT LIKE '%איכות ספק%'`;
+    }
+
+    sql += ` ORDER BY created_at DESC`;
+
+    const result = await db.query(sql, [userId]);
     res.json(result.rows);
   } catch (err) {
     console.error(err.message);
@@ -2261,15 +2376,21 @@ app.get('/api/payments/all', async (req, res) => {
   try {
     const { branchId, status, type, currentMonth } = req.query;
 
+
     let filters = [];
     let params = [];
     let paramIndex = 1;
 
     // Default - open transactions only, unless filtered by status
-    if (!status || status === 'all') {
+    // Default - open transactions only, unless filtered by status
+    if (!status) {
       filters.push(`status = 'open'`);
+    } else if (status === 'all') {
+      // Show all statuses (open, paid, rejected, pending_approval)
     } else if (status === 'paid') {
       filters.push(`status = 'paid'`);
+    } else if (status === 'rejected') {
+      filters.push(`status = 'rejected'`);
     }
 
     if (branchId && branchId !== 'all') {
@@ -2920,7 +3041,8 @@ app.post('/api/client-requests', auth, async (req, res) => {
 // Get all client requests (with optional status filter)
 app.get('/api/client-requests', auth, async (req, res) => {
   try {
-    const { status, branch_id } = req.query;
+    const { status, branch_id, page = 1, limit = 20 } = req.query;
+    const offset = (page - 1) * limit;
 
     let sqlQuery = `
       SELECT cr.*, 
@@ -2951,10 +3073,23 @@ app.get('/api/client-requests', auth, async (req, res) => {
       paramCount++;
     }
 
-    sqlQuery += ' ORDER BY cr.created_at DESC';
+    // Get Total Count
+    const countQuery = `SELECT COUNT(*) FROM client_request cr WHERE 1=1 ${sqlQuery.split('WHERE 1=1')[1]}`;
+    const countResult = await db.query(countQuery, params);
+    const total = parseInt(countResult.rows[0].count);
+
+    // Get Paginated Data
+    sqlQuery += ` ORDER BY cr.created_at DESC LIMIT $${paramCount} OFFSET $${paramCount + 1}`;
+    params.push(limit, offset);
 
     const result = await db.query(sqlQuery, params);
-    res.json(result.rows);
+
+    res.json({
+      data: result.rows,
+      total: total,
+      page: parseInt(page),
+      limit: parseInt(limit)
+    });
   } catch (err) {
     console.error(err.message);
     res.status(500).send('Server Error');
@@ -3094,11 +3229,12 @@ app.put('/api/client-requests/:id/approve', auth, async (req, res) => {
         const dueDate = paymentCalculations.calculateDueDate(now, terms);
 
         const trxResult = await client.query(`
-          INSERT INTO transaction (value, due_date, status, description)
-          VALUES ($1, $2, 'open', $3)
+          INSERT INTO transaction (value, transaction_date, due_date, status, description)
+          VALUES ($1, $2, $3, 'open', $4)
           RETURNING transaction_id
         `, [
           request.quote_value,
+          now,
           dueDate,
           request.quote_description || `תשלום עבור: ${finalClientName}`
         ]);
@@ -3498,9 +3634,10 @@ app.post('/api/sales/request', auth, async (req, res) => {
 
     try {
       // Create transaction with pending_approval status
+      // Store transaction_date, due_date will be calculated upon approval
       const transactionResult = await db.query(`
-        INSERT INTO transaction (value, due_date, status, description)
-        VALUES ($1, $2, 'pending_approval', $3)
+        INSERT INTO transaction (value, transaction_date, due_date, status, description)
+        VALUES ($1, $2, $2, 'pending_approval', $3)
         RETURNING transaction_id
       `, [value, transaction_date, description || null]);
 
@@ -3515,13 +3652,25 @@ app.post('/api/sales/request', auth, async (req, res) => {
 
       await db.query('COMMIT');
 
+      // Get client name for notification
+      const clientRes = await db.query('SELECT name FROM client WHERE client_id = $1', [client_id]);
+      const clientName = clientRes.rows[0] ? clientRes.rows[0].name : 'לא ידוע';
+
+      // Get branch name
+      const branchRes = await db.query('SELECT name FROM branch WHERE branch_id = $1', [branch_id]);
+      const branchName = branchRes.rows[0] ? branchRes.rows[0].name : '';
+
+      // Get sender name
+      const senderRes = await db.query('SELECT first_name, surname FROM "user" WHERE user_id = $1', [req.user.id]);
+      const senderName = senderRes.rows[0] ? `${senderRes.rows[0].first_name} ${senderRes.rows[0].surname}` : 'משתמש';
+
       // Notify accounting/treasurer
       await db.query(`
         INSERT INTO notification (user_id, message, type, created_at)
         SELECT user_id, $1, 'info', NOW()
         FROM "user"
         WHERE role IN ('admin', 'treasurer')
-      `, [`דרישת תשלום חדשה ממתינה לאישור - סכום: ₪${value}`]);
+      `, [`בקשת גבייה מלקוח | לקוח: ${clientName} | סכום: ₪${value} | ענף: ${branchName} | מבקש: ${senderName}`]);
 
       res.status(201).json({
         message: 'דרישת תשלום נשלחה לאישור בהצלחה',
@@ -3581,12 +3730,22 @@ app.put('/api/sales/:id/reject', auth, async (req, res) => {
       `, [sale.branch_id]);
 
       if (branchResult.rows.length > 0 && branchResult.rows[0].manager_id) {
+        // Get client name and amount for notification
+        const detailsQuery = await db.query(`
+          SELECT c.name as client_name, t.value as amount
+          FROM sale s
+          JOIN transaction t ON s.transaction_id = t.transaction_id
+          JOIN client c ON s.client_id = c.client_id
+          WHERE s.sale_id = $1
+        `, [id]);
+        const details = detailsQuery.rows[0] || { client_name: 'לא ידוע', amount: 0 };
+
         await db.query(`
           INSERT INTO notification (user_id, message, type, created_at)
           VALUES ($1, $2, 'error', NOW())
         `, [
           branchResult.rows[0].manager_id,
-          `דרישת תשלום נדחתה על ידי הנהלת חשבונות. סיבה: ${rejection_reason}`
+          `נדחתה גבייה מלקוח | לקוח: ${details.client_name} | סכום: ₪${details.amount} | סיבה: ${rejection_reason}`
         ]);
       }
 
@@ -3671,12 +3830,22 @@ app.put('/api/sales/:id/approve', auth, async (req, res) => {
       `, [sale.branch_id]);
 
       if (branchResult.rows.length > 0 && branchResult.rows[0].manager_id) {
+        // Get client name and amount for notification
+        const detailsQuery = await db.query(`
+          SELECT c.name as client_name, t.value as amount
+          FROM sale s
+          JOIN transaction t ON s.transaction_id = t.transaction_id
+          JOIN client c ON s.client_id = c.client_id
+          WHERE s.sale_id = $1
+        `, [id]);
+        const details = detailsQuery.rows[0] || { client_name: 'לא ידוע', amount: 0 };
+
         await db.query(`
           INSERT INTO notification (user_id, message, type, created_at)
           VALUES ($1, $2, 'success', NOW())
         `, [
           branchResult.rows[0].manager_id,
-          'דרישת תשלום אושרה על ידי הנהלת חשבונות'
+          `אושרה גבייה מלקוח | לקוח: ${details.client_name} | סכום: ₪${details.amount} | מאשר: הנהלת חשבונות`
         ]);
       }
 
@@ -3705,7 +3874,8 @@ app.get('/api/transactions/pending-approval', auth, async (req, res) => {
         s.branch_id,
         s.transaction_id,
         t.value, 
-        t.due_date as transaction_date, 
+        t.transaction_date,
+        t.due_date as expected_payment_date,
         t.description,
         c.name as entity_name,
         c.client_number as entity_identifier,
@@ -3726,7 +3896,8 @@ app.get('/api/transactions/pending-approval', auth, async (req, res) => {
         pr.branch_id,
         pr.transaction_id,
         ABS(t.value) as value, -- Show positive value for display (it is stored negative)
-        t.due_date as transaction_date,
+        t.transaction_date,
+        t.due_date as expected_payment_date,
         t.description,
         s.name as entity_name,
         s.supplier_id::text as entity_identifier, -- Supplier ID is often HP/BN
@@ -3739,7 +3910,7 @@ app.get('/api/transactions/pending-approval', auth, async (req, res) => {
       LEFT JOIN branch b ON pr.branch_id = b.branch_id
       WHERE t.status = 'pending_approval'
       
-      ORDER BY transaction_date DESC
+      ORDER BY id DESC
     `);
 
     res.json(result.rows);
@@ -3792,9 +3963,9 @@ app.post('/api/payment-requests', auth, async (req, res) => {
       }
 
       const transactionResult = await db.query(
-        `INSERT INTO transaction (value, due_date, status, description) 
-         VALUES ($1, $2, $3, $4) RETURNING transaction_id`,
-        [dbValue, finalDueDate || null, initialStatus, finalDescription]
+        `INSERT INTO transaction (value, transaction_date, due_date, status, description) 
+         VALUES ($1, $2, $3, $4, $5) RETURNING transaction_id`,
+        [dbValue, baseDate, finalDueDate || null, initialStatus, finalDescription]
       );
       const transactionId = transactionResult.rows[0].transaction_id;
 
@@ -3823,10 +3994,12 @@ app.post('/api/payment-requests', auth, async (req, res) => {
       const senderRes = await db.query('SELECT first_name, surname FROM "user" WHERE user_id = $1', [req.user.id]);
       const senderName = senderRes.rows[0] ? `${senderRes.rows[0].first_name} ${senderRes.rows[0].surname}` : 'משתמש';
 
-      // Get branch name
+      // Get branch and supplier names
       const branchRes = await db.query('SELECT name FROM branch WHERE branch_id = $1', [branch_id]);
       const branchName = branchRes.rows[0] ? branchRes.rows[0].name : '';
-      const requesterDisplay = branchName ? `${senderName} (${branchName})` : senderName;
+
+      const supplierNameRes = await db.query('SELECT name FROM supplier WHERE supplier_id = $1', [supplier_id]);
+      const supplierName = supplierNameRes.rows[0] ? supplierNameRes.rows[0].name : 'לא ידוע';
 
       // Notify Treasurer (Role based)
       await db.query(`
@@ -3834,7 +4007,7 @@ app.post('/api/payment-requests', auth, async (req, res) => {
         SELECT user_id, $1, 'info', NOW()
         FROM "user"
         WHERE role IN ('admin', 'treasurer')
-      `, [`דרישת תשלום מספק ממתינה לאישור - סכום: ₪${amount} מאת: ${requesterDisplay}`]);
+      `, [`בקשת תשלום לספק | ספק: ${supplierName} | סכום: ₪${amount} | ענף: ${branchName} | מבקש: ${senderName}`]);
 
       res.status(201).json({
         ...payReqResult.rows[0],
@@ -3873,15 +4046,24 @@ app.put('/api/payment-requests/:id/approve', auth, async (req, res) => {
       await db.query('COMMIT');
 
       // Notify Branch Manager
-      // (Finding manager logic same as sale ...)
       const branchQuery = await db.query('SELECT manager_id FROM branch WHERE branch_id = $1', [payReq.branch_id]);
       if (branchQuery.rows.length > 0 && branchQuery.rows[0].manager_id) {
+        // Get supplier name and amount for notification
+        const detailsQuery = await db.query(`
+          SELECT s.name as supplier_name, ABS(t.value) as amount
+          FROM payment_req pr
+          JOIN transaction t ON pr.transaction_id = t.transaction_id
+          JOIN supplier s ON pr.supplier_id = s.supplier_id
+          WHERE pr.payment_req_id = $1
+        `, [id]);
+        const details = detailsQuery.rows[0] || { supplier_name: 'לא ידוע', amount: 0 };
+
         await db.query(`
           INSERT INTO notification(user_id, message, type, created_at)
           VALUES($1, $2, 'success', NOW())
           `, [
           branchQuery.rows[0].manager_id,
-          'דרישת תשלום מספק אושרה על ידי הנהלת חשבונות'
+          `אושר תשלום לספק | ספק: ${details.supplier_name} | סכום: ₪${details.amount} | מאשר: הנהלת חשבונות`
         ]);
       }
 
@@ -3898,7 +4080,8 @@ app.put('/api/payment-requests/:id/approve', auth, async (req, res) => {
 
 app.get('/api/suppliers/search', async (req, res) => {
   try {
-    const { query, criteria, status, is_active } = req.query;
+    const { query, criteria, status, is_active, page = 1, limit = 20 } = req.query;
+    const offset = (page - 1) * limit;
 
     let sqlQuery = `
       SELECT s.*, 
@@ -3934,9 +4117,6 @@ app.get('/api/suppliers/search', async (req, res) => {
         params.push(`%${q}%`);
         paramIndex++;
       } else if (criteria === 'tag') {
-        // Tag search via join or subquery if needed, but for now simple 'field' check or tag logic
-        // Assuming simple field match or we need to join supplier_field.
-        // Let's assume naive tag search on field name if not fully implemented tag system
         sqlQuery += ` AND s.supplier_field_id IN (SELECT supplier_field_id FROM supplier_field WHERE field ILIKE $${paramIndex} OR $${paramIndex} = ANY(tags))`;
         params.push(`%${q}%`);
         paramIndex++;
@@ -3948,7 +4128,20 @@ app.get('/api/suppliers/search', async (req, res) => {
       }
     }
 
-    sqlQuery += ` GROUP BY s.supplier_id ORDER BY s.name`;
+    // Grouping needed before count for correct total
+    const groupByClause = ` GROUP BY s.supplier_id`;
+
+    // 1. Get Total Count
+    // Need to count the distinct groups
+    const countQuery = `SELECT COUNT(*) FROM (SELECT s.supplier_id FROM supplier s WHERE 1=1 ${sqlQuery.split('WHERE 1=1')[1]} ${groupByClause}) as total_count`;
+
+    // We need to run the count query with the same params (excluding pagination)
+    const countResult = await db.query(countQuery, params);
+    const total = parseInt(countResult.rows[0].count);
+
+    // 2. Get Paginated Data
+    sqlQuery += `${groupByClause} ORDER BY s.name LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    params.push(limit, offset);
 
     const result = await db.query(sqlQuery, params);
 
@@ -3958,7 +4151,12 @@ app.get('/api/suppliers/search', async (req, res) => {
       average_rating: parseFloat(parseFloat(row.average_rating).toFixed(1))
     }));
 
-    res.json(formattedRows);
+    res.json({
+      data: formattedRows,
+      total: total,
+      page: parseInt(page),
+      limit: parseInt(limit)
+    });
   } catch (err) {
     console.error('Error searching suppliers:', err.message);
     res.status(500).send('Server Error');
@@ -3988,12 +4186,22 @@ app.put('/api/payment-requests/:id/reject', auth, async (req, res) => {
       // Notify Branch Manager
       const branchQuery = await db.query('SELECT manager_id FROM branch WHERE branch_id = $1', [payReq.branch_id]);
       if (branchQuery.rows.length > 0 && branchQuery.rows[0].manager_id) {
+        // Get supplier name and amount for notification
+        const detailsQuery = await db.query(`
+          SELECT s.name as supplier_name, ABS(t.value) as amount
+          FROM payment_req pr
+          JOIN transaction t ON pr.transaction_id = t.transaction_id
+          JOIN supplier s ON pr.supplier_id = s.supplier_id
+          WHERE pr.payment_req_id = $1
+        `, [id]);
+        const details = detailsQuery.rows[0] || { supplier_name: 'לא ידוע', amount: 0 };
+
         await db.query(`
           INSERT INTO notification(user_id, message, type, created_at)
           VALUES($1, $2, 'error', NOW())
           `, [
           branchQuery.rows[0].manager_id,
-          `דרישת תשלום מספק נדחתה.סיבה: ${rejection_reason}`
+          `נדחה תשלום לספק | ספק: ${details.supplier_name} | סכום: ₪${details.amount} | סיבה: ${rejection_reason}`
         ]);
       }
 
@@ -4002,6 +4210,527 @@ app.put('/api/payment-requests/:id/reject', auth, async (req, res) => {
       await db.query('ROLLBACK');
       throw error;
     }
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server Error');
+  }
+});
+
+// ============================================
+// PAYMENT DASHBOARD & TRACKING API
+// ============================================
+
+// Get payment dashboard statistics
+app.get('/api/payments/dashboard', auth, async (req, res) => {
+  try {
+    const { branchId } = req.query;
+
+    let branchFilter = '';
+    const params = [];
+    let paramIndex = 1;
+
+    if (branchId && branchId !== 'all') {
+      branchFilter = ` AND (pr.branch_id = $${paramIndex} OR sa.branch_id = $${paramIndex})`;
+      params.push(branchId);
+      paramIndex++;
+    }
+
+    // Get overdue payables (to suppliers)
+    const overduePayablesQuery = `
+      SELECT COUNT(*) as count, SUM(ABS(t.value)) as total
+      FROM transaction t
+      JOIN payment_req pr ON t.transaction_id = pr.transaction_id
+      WHERE t.status = 'open' AND t.due_date < CURRENT_DATE ${branchFilter}
+    `;
+
+    // Get overdue receivables (from clients)
+    const overdueReceivablesQuery = `
+      SELECT COUNT(*) as count, SUM(t.value) as total
+      FROM transaction t
+      JOIN sale sa ON t.transaction_id = sa.transaction_id
+      WHERE t.status = 'open' AND t.due_date < CURRENT_DATE ${branchFilter}
+    `;
+
+    // Get upcoming payments (next 7 days)
+    const upcomingQuery = `
+      SELECT COUNT(*) as count
+      FROM transaction t
+      LEFT JOIN payment_req pr ON t.transaction_id = pr.transaction_id
+      LEFT JOIN sale sa ON t.transaction_id = sa.transaction_id
+      WHERE t.status = 'open' 
+        AND t.due_date >= CURRENT_DATE 
+        AND t.due_date <= CURRENT_DATE + INTERVAL '7 days'
+        ${branchFilter}
+    `;
+
+    const [overduePayables, overdueReceivables, upcoming] = await Promise.all([
+      db.query(overduePayablesQuery, params),
+      db.query(overdueReceivablesQuery, params),
+      db.query(upcomingQuery, params)
+    ]);
+
+    res.json({
+      overdue_payables_count: overduePayables.rows[0].count || 0,
+      overdue_payables_total: overduePayables.rows[0].total || 0,
+      overdue_receivables_count: overdueReceivables.rows[0].count || 0,
+      overdue_receivables_total: overdueReceivables.rows[0].total || 0,
+      upcoming_count: upcoming.rows[0].count || 0
+    });
+  } catch (err) {
+    console.error('Error fetching dashboard stats:', err);
+    res.status(500).json({ message: 'Server Error' });
+  }
+});
+
+// Get all payments with pagination
+app.get('/api/payments/all', auth, async (req, res) => {
+  try {
+    const { branchId, type, status, currentMonth, page = 1, limit = 20 } = req.query;
+    const offset = (page - 1) * limit;
+
+    let filters = ['t.status = \'open\''];
+    const params = [];
+    let paramIndex = 1;
+
+    // Branch filter
+    if (branchId && branchId !== 'all') {
+      filters.push(`(pr.branch_id = $${paramIndex} OR sa.branch_id = $${paramIndex})`);
+      params.push(branchId);
+      paramIndex++;
+    }
+
+    // Type filter (payment/sale)
+    if (type && type !== 'all') {
+      if (type === 'payment') {
+        filters.push('pr.payment_req_id IS NOT NULL');
+      } else if (type === 'sale') {
+        filters.push('sa.sale_id IS NOT NULL');
+      }
+    }
+
+    // Current month filter
+    if (currentMonth === 'true') {
+      filters.push('EXTRACT(MONTH FROM t.due_date) = EXTRACT(MONTH FROM CURRENT_DATE)');
+      filters.push('EXTRACT(YEAR FROM t.due_date) = EXTRACT(YEAR FROM CURRENT_DATE)');
+    }
+
+    const whereClause = filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : '';
+
+    // Count query
+    const countQuery = `
+      SELECT COUNT(*) FROM (
+        SELECT t.transaction_id
+        FROM transaction t
+        LEFT JOIN payment_req pr ON t.transaction_id = pr.transaction_id
+        LEFT JOIN sale sa ON t.transaction_id = sa.transaction_id
+        ${whereClause}
+      ) as total_query
+    `;
+
+    // Main query
+    const mainQuery = `
+      SELECT 
+        t.transaction_id,
+        t.value,
+        t.due_date,
+        t.status,
+        CASE 
+          WHEN pr.payment_req_id IS NOT NULL THEN 'payment'
+          WHEN sa.sale_id IS NOT NULL THEN 'sale'
+        END as transaction_type,
+        COALESCE(s.name, c.name) as entity_name,
+        COALESCE(b1.name, b2.name) as branch_name,
+        CURRENT_DATE - t.due_date as days_overdue,
+        t.due_date - CURRENT_DATE as days_until_due
+      FROM transaction t
+      LEFT JOIN payment_req pr ON t.transaction_id = pr.transaction_id
+      LEFT JOIN supplier s ON pr.supplier_id = s.supplier_id
+      LEFT JOIN branch b1 ON pr.branch_id = b1.branch_id
+      LEFT JOIN sale sa ON t.transaction_id = sa.transaction_id
+      LEFT JOIN client c ON sa.client_id = c.client_id
+      LEFT JOIN branch b2 ON sa.branch_id = b2.branch_id
+      ${whereClause}
+      ORDER BY t.due_date ASC
+      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+    `;
+
+    const [countResult, dataResult] = await Promise.all([
+      db.query(countQuery, params),
+      db.query(mainQuery, [...params, limit, offset])
+    ]);
+
+    const total = parseInt(countResult.rows[0].count);
+
+    res.json({
+      data: dataResult.rows,
+      total,
+      page: parseInt(page),
+      limit: parseInt(limit)
+    });
+  } catch (err) {
+    console.error('Error fetching all payments:', err);
+    res.status(500).json({ message: 'Server Error' });
+  }
+});
+
+// Get overdue payments
+app.get('/api/payments/overdue', auth, async (req, res) => {
+  try {
+    const { branchId, type, page = 1, limit = 20 } = req.query;
+    const offset = (page - 1) * limit;
+
+    let filters = ['t.status = \'open\'', 't.due_date < CURRENT_DATE'];
+    const params = [];
+    let paramIndex = 1;
+
+    if (branchId && branchId !== 'all') {
+      filters.push(`(pr.branch_id = $${paramIndex} OR sa.branch_id = $${paramIndex})`);
+      params.push(branchId);
+      paramIndex++;
+    }
+
+    if (type && type !== 'all') {
+      if (type === 'payment') {
+        filters.push('pr.payment_req_id IS NOT NULL');
+      } else if (type === 'sale') {
+        filters.push('sa.sale_id IS NOT NULL');
+      }
+    }
+
+    const whereClause = `WHERE ${filters.join(' AND ')}`;
+
+    const countQuery = `
+      SELECT COUNT(*) FROM (
+        SELECT t.transaction_id
+        FROM transaction t
+        LEFT JOIN payment_req pr ON t.transaction_id = pr.transaction_id
+        LEFT JOIN sale sa ON t.transaction_id = sa.transaction_id
+        ${whereClause}
+      ) as total_query
+    `;
+
+    const mainQuery = `
+      SELECT 
+        t.transaction_id,
+        t.value,
+        t.due_date,
+        t.status,
+        CASE 
+          WHEN pr.payment_req_id IS NOT NULL THEN 'payment'
+          WHEN sa.sale_id IS NOT NULL THEN 'sale'
+        END as transaction_type,
+        COALESCE(s.name, c.name) as entity_name,
+        COALESCE(b1.name, b2.name) as branch_name,
+        CURRENT_DATE - t.due_date as days_overdue,
+        t.due_date - CURRENT_DATE as days_until_due
+      FROM transaction t
+      LEFT JOIN payment_req pr ON t.transaction_id = pr.transaction_id
+      LEFT JOIN supplier s ON pr.supplier_id = s.supplier_id
+      LEFT JOIN branch b1 ON pr.branch_id = b1.branch_id
+      LEFT JOIN sale sa ON t.transaction_id = sa.transaction_id
+      LEFT JOIN client c ON sa.client_id = c.client_id
+      LEFT JOIN branch b2 ON sa.branch_id = b2.branch_id
+      ${whereClause}
+      ORDER BY t.due_date ASC
+      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+    `;
+
+    const [countResult, dataResult] = await Promise.all([
+      db.query(countQuery, params),
+      db.query(mainQuery, [...params, limit, offset])
+    ]);
+
+    const total = parseInt(countResult.rows[0].count);
+
+    res.json({
+      data: dataResult.rows,
+      total,
+      page: parseInt(page),
+      limit: parseInt(limit)
+    });
+  } catch (err) {
+    console.error('Error fetching overdue payments:', err);
+    res.status(500).json({ message: 'Server Error' });
+  }
+});
+
+// Get upcoming payments
+app.get('/api/payments/upcoming', auth, async (req, res) => {
+  try {
+    const { branchId, type, interval = '7 days', page = 1, limit = 20 } = req.query;
+    const offset = (page - 1) * limit;
+
+    let filters = [
+      't.status = \'open\'',
+      't.due_date >= CURRENT_DATE',
+      `t.due_date <= CURRENT_DATE + INTERVAL '${interval}'`
+    ];
+    const params = [];
+    let paramIndex = 1;
+
+    if (branchId && branchId !== 'all') {
+      filters.push(`(pr.branch_id = $${paramIndex} OR sa.branch_id = $${paramIndex})`);
+      params.push(branchId);
+      paramIndex++;
+    }
+
+    if (type && type !== 'all') {
+      if (type === 'payment') {
+        filters.push('pr.payment_req_id IS NOT NULL');
+      } else if (type === 'sale') {
+        filters.push('sa.sale_id IS NOT NULL');
+      }
+    }
+
+    const whereClause = `WHERE ${filters.join(' AND ')}`;
+
+    const countQuery = `
+      SELECT COUNT(*) FROM (
+        SELECT t.transaction_id
+        FROM transaction t
+        LEFT JOIN payment_req pr ON t.transaction_id = pr.transaction_id
+        LEFT JOIN sale sa ON t.transaction_id = sa.transaction_id
+        ${whereClause}
+      ) as total_query
+    `;
+
+    const mainQuery = `
+      SELECT 
+        t.transaction_id,
+        t.value,
+        t.due_date,
+        t.status,
+        CASE 
+          WHEN pr.payment_req_id IS NOT NULL THEN 'payment'
+          WHEN sa.sale_id IS NOT NULL THEN 'sale'
+        END as transaction_type,
+        COALESCE(s.name, c.name) as entity_name,
+        COALESCE(b1.name, b2.name) as branch_name,
+        CURRENT_DATE - t.due_date as days_overdue,
+        t.due_date - CURRENT_DATE as days_until_due
+      FROM transaction t
+      LEFT JOIN payment_req pr ON t.transaction_id = pr.transaction_id
+      LEFT JOIN supplier s ON pr.supplier_id = s.supplier_id
+      LEFT JOIN branch b1 ON pr.branch_id = b1.branch_id
+      LEFT JOIN sale sa ON t.transaction_id = sa.transaction_id
+      LEFT JOIN client c ON sa.client_id = c.client_id
+      LEFT JOIN branch b2 ON sa.branch_id = b2.branch_id
+      ${whereClause}
+      ORDER BY t.due_date ASC
+      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+    `;
+
+    const [countResult, dataResult] = await Promise.all([
+      db.query(countQuery, params),
+      db.query(mainQuery, [...params, limit, offset])
+    ]);
+
+    const total = parseInt(countResult.rows[0].count);
+
+    res.json({
+      data: dataResult.rows,
+      total,
+      page: parseInt(page),
+      limit: parseInt(limit)
+    });
+  } catch (err) {
+    console.error('Error fetching upcoming payments:', err);
+    res.status(500).json({ message: 'Server Error' });
+  }
+});
+
+// Run manual payment check (Admin/Treasurer only)
+app.post('/api/payments/run-check', auth, async (req, res) => {
+  try {
+    // Check if user is admin or treasurer
+    if (!['admin', 'treasurer'].includes(req.user.role)) {
+      return res.status(403).json({ message: 'אין הרשאה' });
+    }
+
+    const result = await paymentMonitorService.runManualCheck();
+    res.json(result);
+  } catch (err) {
+    console.error('Error running manual check:', err);
+    res.status(500).json({ message: 'Server Error' });
+  }
+});
+
+// Mark payment as paid
+app.put('/api/payments/:id/mark-paid', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { actualDate } = req.body;
+
+    await db.query(
+      `UPDATE transaction SET status = 'paid', actual_date = $1 WHERE transaction_id = $2`,
+      [actualDate || new Date(), id]
+    );
+
+    // Remove any alerts for this transaction
+    await alertService.removeAlertForPaidTransaction(id);
+
+    res.json({ message: 'התשלום סומן כשולם בהצלחה' });
+  } catch (err) {
+    console.error('Error marking payment as paid:', err);
+    res.status(500).json({ message: 'Server Error' });
+  }
+});
+
+
+
+// ============================================
+// BRANCH BUDGET API
+// ============================================
+
+// Get Branch Balance / Budget
+app.get('/api/branches/:id/balance', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Fetch budget from branch table
+    const branchRes = await db.query('SELECT budget, name, business FROM branch WHERE branch_id = $1', [id]);
+
+    if (branchRes.rows.length === 0) {
+      return res.status(404).json({ message: 'Branch not found' });
+    }
+
+    const { budget, name, business } = branchRes.rows[0];
+
+    // Calculate debit (expenses) from transactions
+    // 1. Payment Requests (Expenses)
+    const expenseQuery = `
+      SELECT SUM(ABS(t.value)) as total_expenses
+      FROM transaction t
+      JOIN payment_req pr ON t.transaction_id = pr.transaction_id
+      WHERE pr.branch_id = $1 
+      AND (t.status = 'paid' OR t.status = 'open')
+      AND t.due_date >= date_trunc('year', CURRENT_DATE)
+    `;
+    // Note: Transaction values are negative for expenses, so we sum them and take absolute if needed.
+    // However, logic usually stores expense as negative. 
+    // Let's assume negative. So SUM will be negative. We want positive "Debit".
+
+    // 2. Sales (Income) - For Business Branches (credit)
+    const incomeQuery = `
+      SELECT SUM(ABS(t.value)) as total_income
+      FROM transaction t
+      JOIN sale s ON t.transaction_id = s.transaction_id
+      WHERE s.branch_id = $1
+      AND (t.status = 'paid' OR t.status = 'open')
+      AND t.due_date >= date_trunc('year', CURRENT_DATE)
+    `;
+
+    const [expenseRes, incomeRes] = await Promise.all([
+      db.query(expenseQuery, [id]),
+      db.query(incomeQuery, [id])
+    ]);
+
+    const expenses = Math.abs(parseFloat(expenseRes.rows[0].total_expenses || 0));
+    const income = parseFloat(incomeRes.rows[0].total_income || 0);
+
+    // Determines what "credit" means
+    // Community: credit = budget
+    // Business: credit = income (sales)
+
+    let credit = 0;
+    if (business) {
+      credit = income;
+    } else {
+      credit = parseFloat(budget || 0);
+    }
+
+    res.json({
+      credit: credit,
+      debit: expenses,
+      balance: credit - expenses,
+      name: name,
+      budget: parseFloat(budget || 0) // Explicit budget field for editing
+    });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server Error');
+  }
+});
+
+// Update Branch Budget
+app.put('/api/branches/:id/budget', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { budget } = req.body;
+
+    console.log(`[DEBUG] Updating budget for branch ${id} to ${budget}`); // Debug log
+
+    await db.query('UPDATE branch SET budget = $1 WHERE branch_id = $2', [budget, id]);
+
+    res.json({ message: 'Budget updated successfully', budget });
+  } catch (err) {
+    console.error('Error updating budget:', err.message);
+    res.status(500).send('Server Error');
+  }
+});
+
+// Get Branch Transactions (Mixed Sales & Expenses)
+app.get('/api/branches/:id/transactions', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const limit = req.query.limit || 5;
+
+    const query = `
+      SELECT * FROM (
+        -- Expenses (Payment Requests)
+        SELECT 
+          t.transaction_id,
+          t.value,
+          t.due_date,
+          t.status,
+          'expense' as type,
+          s.name as supplier_name,
+          NULL as client_name,
+          CASE 
+            WHEN t.status = 'paid' THEN 0 
+            WHEN t.due_date < CURRENT_DATE THEN CURRENT_DATE - t.due_date
+            ELSE 0 
+          END as days_overdue,
+          CASE 
+            WHEN t.due_date > CURRENT_DATE THEN t.due_date - CURRENT_DATE
+            ELSE 0 
+          END as days_until_due
+        FROM transaction t
+        JOIN payment_req pr ON t.transaction_id = pr.transaction_id
+        JOIN supplier s ON pr.supplier_id = s.supplier_id
+        WHERE pr.branch_id = $1
+        
+        UNION ALL
+        
+        -- Income (Sales)
+        SELECT 
+          t.transaction_id,
+          t.value,
+          t.due_date,
+          t.status,
+          'sale' as type,
+          NULL as supplier_name,
+          c.name as client_name,
+          CASE 
+            WHEN t.status = 'paid' THEN 0 
+            WHEN t.due_date < CURRENT_DATE THEN CURRENT_DATE - t.due_date
+            ELSE 0 
+          END as days_overdue,
+          CASE 
+            WHEN t.due_date > CURRENT_DATE THEN t.due_date - CURRENT_DATE
+            ELSE 0 
+          END as days_until_due
+        FROM transaction t
+        JOIN sale sa ON t.transaction_id = sa.transaction_id
+        JOIN client c ON sa.client_id = c.client_id
+        WHERE sa.branch_id = $1
+      ) combined
+      ORDER BY due_date DESC
+      LIMIT $2
+    `;
+
+    const result = await db.query(query, [id, limit]);
+    res.json(result.rows);
   } catch (err) {
     console.error(err.message);
     res.status(500).send('Server Error');

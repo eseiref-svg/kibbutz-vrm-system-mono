@@ -1,5 +1,5 @@
 import React from 'react';
-import { LuArrowRight } from 'react-icons/lu';
+import { FiArrowRight } from 'react-icons/fi';
 import Button from './Button';
 
 function StandardDetailsCard({
@@ -26,7 +26,7 @@ function StandardDetailsCard({
                             className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-500"
                             title="חזור לרשימה"
                         >
-                            <LuArrowRight size={24} />
+                            <FiArrowRight size={24} />
                         </button>
                     )}
                     <div>

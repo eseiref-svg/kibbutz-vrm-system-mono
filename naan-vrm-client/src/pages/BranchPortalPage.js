@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
+import useDebounce from '../hooks/useDebounce';
 import api from '../api/axiosConfig';
 import { formatCurrency } from '../utils/formatCurrency';
 import { useAuth } from '../context/AuthContext';
-import BalanceCard from '../components/branch-portal/BalanceCard';
+import BranchFinancialDashboard from '../components/branch-management/BranchFinancialDashboard';
 import BranchSupplierSearch from '../components/branch-portal/BranchSupplierSearch';
 // import BranchSupplierInfoCard from '../components/branch-portal/BranchSupplierInfoCard'; // Replaced by shared components
 import RequestSupplierForm from '../components/branch-portal/RequestSupplierForm';
@@ -24,6 +25,7 @@ function BranchPortalPage() {
   const [transactions, setTransactions] = useState([]);
   const [foundSuppliers, setFoundSuppliers] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedQuery = useDebounce(searchQuery, 500);
   const [searchCriteria, setSearchCriteria] = useState('name');
   const [loading, setLoading] = useState(true);
   const [showRequestForm, setShowRequestForm] = useState(false);
@@ -64,16 +66,35 @@ function BranchPortalPage() {
     api.get('/suppliers/search', {
       params: {
         criteria: searchCriteria,
-        query: searchQuery.trim(),
+        query: debouncedQuery.trim(), // Use debounced value
         status: 'approved',
         is_active: true
       }
     })
       .then(response => {
-        setFoundSuppliers(response.data);
+        // Handle paginated response structure
+        if (response.data.data && Array.isArray(response.data.data)) {
+          setFoundSuppliers(response.data.data);
+        } else {
+          setFoundSuppliers(response.data);
+        }
       })
       .catch(error => console.error("Error searching suppliers:", error));
   };
+
+  // Trigger search on debounce
+  useEffect(() => {
+    if (debouncedQuery.trim() || searchCriteria !== 'name') {
+      handleSupplierSearch();
+    }
+    // If empty query, we might want to clear or show all? 
+    // Usually branch portal search starts empty/hidden unless typing?
+    // Let's stick to existing logic: clearSearch reloads "my suppliers".
+    // If user deleted text, maybe we should auto-reload my suppliers?
+    if (!debouncedQuery.trim() && searchQuery === '') {
+      // if we are truly empty
+    }
+  }, [debouncedQuery, searchCriteria]);
 
   const clearSearch = () => {
     setSearchQuery('');
@@ -156,7 +177,11 @@ function BranchPortalPage() {
         <p>טוען נתונים...</p>
       ) : branch ? (
         <div className="space-y-8">
-          <BalanceCard balanceData={balance} />
+          <BranchFinancialDashboard
+            branchId={branch.branch_id}
+            isBusiness={branch.business}
+            readOnly={true}
+          />
 
           <NotificationsList />
 
@@ -202,10 +227,12 @@ function BranchPortalPage() {
             )}
           </div>
 
-          <BranchClientManagement
-            branchId={branch.branch_id}
-            onSaleCreated={handleSaleCreated}
-          />
+          {branch.business && (
+            <BranchClientManagement
+              branchId={branch.branch_id}
+              onSaleCreated={handleSaleCreated}
+            />
+          )}
 
           <TransactionsWidget
             ref={transactionsWidgetRef}

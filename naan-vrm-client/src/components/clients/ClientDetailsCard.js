@@ -7,7 +7,7 @@ import Button from '../shared/Button';
 import StandardDetailsCard from '../shared/StandardDetailsCard';
 import StandardDataRow from '../shared/StandardDataRow';
 import { formatPaymentTerms } from '../../utils/paymentTerms';
-import { LuPhone, LuMail } from 'react-icons/lu';
+import { LuPhone, LuMail, LuPlus } from 'react-icons/lu';
 
 function ClientDetailsCard({ client, onBackToList, onRefresh, onEdit, onStatusToggle }) {
   const { user } = useAuth();
@@ -35,90 +35,104 @@ function ClientDetailsCard({ client, onBackToList, onRefresh, onEdit, onStatusTo
     setShowCreateSaleForm(false);
   };
 
-  const handleCallClient = () => {
-    if (client.poc_phone) {
-      window.location.href = `tel:${client.poc_phone}`;
-    }
-  };
-
-  const handleEmailClient = () => {
-    if (client.poc_email) {
-      window.location.href = `mailto:${client.poc_email}`;
-    }
-  };
-
   const isActive = client.is_active !== false;
 
   return (
     <StandardDetailsCard
       title={client.name}
-      subtitle={`מספר לקוח: ${client.client_number || '-'}`}
+      subtitle={
+        <div className="flex items-center gap-2">
+          <span className={`h-2.5 w-2.5 rounded-full ${isActive ? 'bg-green-500' : 'bg-red-500'}`} title={isActive ? 'פעיל' : 'לא פעיל'}></span>
+          <span className="text-sm text-gray-500">#{client.client_number || '-'}</span>
+        </div>
+      }
       isActive={isActive}
       onBack={onBackToList}
-      onEdit={onEdit}
       entityType="לקוח"
+
+      // Restore standard buttons
+      onEdit={onEdit}
       onStatusToggle={onStatusToggle}
+      showStatus={false} // Keeping the dot in subtitle, so hiding text status if desired, or can revert to true. User didn't specify, but "Minimalist" usually liked the dot. Let's keep the dot for now.
+
       extraActions={
-        <Button
-          variant={showCreateSaleForm ? "outline" : "primary"}
-          onClick={() => setShowCreateSaleForm(!showCreateSaleForm)}
-        >
-          {showCreateSaleForm ? 'ביטול יצירה' : 'צור דרישת תשלום'}
-        </Button>
+        <div className="flex items-center gap-2">
+          {!showCreateSaleForm && (
+            <Button
+              variant="primary"
+              onClick={() => setShowCreateSaleForm(true)}
+              className="flex items-center gap-2 rounded-full px-4"
+              size="sm"
+            >
+              <LuPlus size={16} />
+              צור מכירה
+            </Button>
+          )}
+          {showCreateSaleForm && (
+            <Button
+              variant="outline"
+              onClick={() => setShowCreateSaleForm(false)}
+              className="rounded-full"
+              size="sm"
+            >
+              ביטול
+            </Button>
+          )}
+        </div>
       }
     >
-      <div className="flex gap-3 mb-6">
-        {client.poc_phone && (
-          <button
-            onClick={handleCallClient}
-            className="bg-green-100 text-green-700 hover:bg-green-200 font-semibold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors"
-            title="התקשר"
-          >
-            <LuPhone size={18} /> התקשר
-          </button>
-        )}
-        {client.poc_email && (
-          <button
-            onClick={handleEmailClient}
-            className="bg-blue-100 text-blue-700 hover:bg-blue-200 font-semibold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors"
-            title="שלח אימייל"
-          >
-            <LuMail size={18} /> שלח אימייל
-          </button>
-        )}
-      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-        {/* Contact Info */}
+      {/* Main Info Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mb-10">
+
+        {/* Column 1: Contact - Reverted to StandardDataRow */}
         <div>
-          <h3 className="text-lg font-bold text-gray-700 border-b border-blue-200 pb-2 mb-4">פרטי איש קשר</h3>
-          <div className="space-y-3">
-            <StandardDataRow label="שם" value={client.poc_name} />
-            <StandardDataRow label="טלפון" value={client.poc_phone || 'לא צוין'} />
-            <StandardDataRow label="אימייל" value={client.poc_email || 'לא צוין'} />
+          <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">פרטי קשר</h3>
+          <div className="space-y-4">
+            <StandardDataRow label="איש קשר" value={client.poc_name} />
+
+            <StandardDataRow
+              label="אימייל"
+              value={client.poc_email ? (
+                <a href={`mailto:${client.poc_email}`} className="hover:text-blue-600 transition-colors flex items-center gap-1.5 dir-ltr w-fit">
+                  {client.poc_email} <LuMail size={14} className="text-gray-400" />
+                </a>
+              ) : '-'}
+            />
+
+            <StandardDataRow
+              label="טלפון"
+              value={client.poc_phone ? (
+                <a href={`tel:${client.poc_phone}`} className="hover:text-blue-600 transition-colors flex items-center gap-1.5 dir-ltr w-fit">
+                  {client.poc_phone} <LuPhone size={14} className="text-gray-400" />
+                </a>
+              ) : '-'}
+            />
           </div>
         </div>
 
-        {/* Location Info */}
+        {/* Column 2: Billing */}
         <div>
-          <h3 className="text-lg font-bold text-gray-700 border-b border-blue-200 pb-2 mb-4">כתובת ותנאים</h3>
-          <div className="space-y-3">
+          <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">כתובת וחיוב</h3>
+          <div className="space-y-4">
             <StandardDataRow
               label="כתובת"
-              value={`${client.city || '-'}, ${client.street || '-'}`}
+              value={`${client.city || ''}, ${client.street || ''}`}
             />
             <StandardDataRow
               label="תנאי תשלום"
               value={formatPaymentTerms(client.payment_terms)}
             />
+            <StandardDataRow
+              label="מספר לקוח"
+              value={client.client_number || '-'}
+            />
           </div>
         </div>
       </div>
 
-
-
       {showCreateSaleForm && (
-        <div className="mb-8 bg-gray-50 p-6 rounded-xl border border-gray-200">
+        <div className="mb-10 bg-gray-50 p-6 rounded-xl border border-gray-200 animate-fade-in-down">
           <CreateSaleForm
             clientId={client.client_id}
             clientName={client.name}
@@ -129,15 +143,21 @@ function ClientDetailsCard({ client, onBackToList, onRefresh, onEdit, onStatusTo
         </div>
       )}
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <h3 className="text-xl font-bold text-gray-800 mb-4 border-b pb-2">
-          {user?.branch_business === false ? 'היסטוריית ותשלומים' : 'היסטוריית מכירות ותשלומים'}
-        </h3>
-        {loading ? (
-          <p className="text-gray-500">טוען נתונים...</p>
-        ) : (
-          <ClientSalesTable sales={sales} onRefresh={fetchSales} />
-        )}
+      {/* Sales Table Section */}
+      <div className="mt-8">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-bold text-gray-800">
+            {user?.branch_business === false ? 'היסטוריית תשלומים' : 'פעילות אחרונה'}
+          </h3>
+        </div>
+
+        <div className="bg-white rounded-xl border border-gray-100 overflow-hidden shadow-sm">
+          {loading ? (
+            <div className="p-8 text-center text-gray-500">טוען נתונים...</div>
+          ) : (
+            <ClientSalesTable sales={sales} onRefresh={fetchSales} simpleMode={true} />
+          )}
+        </div>
       </div>
 
     </StandardDetailsCard>

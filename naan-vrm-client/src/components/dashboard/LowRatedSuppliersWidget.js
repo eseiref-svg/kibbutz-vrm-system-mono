@@ -1,24 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import { Rating } from '@mui/material';
+import { useNavigate } from 'react-router-dom';
 import api from '../../api/axiosConfig';
 
 function LowRatedSuppliersWidget() {
     const [suppliers, setSuppliers] = useState([]);
     const [loading, setLoading] = useState(true);
+    const navigate = useNavigate();
 
     useEffect(() => {
         const fetchLowRatedSuppliers = async () => {
             try {
-                // Fetch all suppliers and filter client-side for now, or add a dedicated endpoint
-                // Using existing search endpoint: /api/suppliers/search?criteria=... 
-                // Or better, fetch all and filter.
-                const response = await api.get('/suppliers/search');
-                // Filter suppliers with rating > 0 and < 3
-                const lowRated = response.data.filter(s => {
-                    const rating = parseFloat(s.average_rating);
-                    return rating > 0 && rating < 3.0;
+                // Fetch filtered suppliers from server
+                const response = await api.get('/suppliers/search', {
+                    params: {
+                        max_rating: 3,      // Rating < 3
+                        min_rating_gt: 0,   // Rating > 0
+                        min_reviews: 3      // At least 3 reviews
+                    }
                 });
-                setSuppliers(lowRated);
+                // Handle different response structures (array vs paginated object)
+                const data = response.data.data || response.data;
+                setSuppliers(Array.isArray(data) ? data : []);
             } catch (err) {
                 console.error("Error fetching low rated suppliers:", err);
             } finally {
@@ -29,8 +32,12 @@ function LowRatedSuppliersWidget() {
         fetchLowRatedSuppliers();
     }, []);
 
-    if (loading) return null;
+    if (loading) return null; // Or a small spinner if critical, but for dashboard widgets silent loading is often preferred
     if (suppliers.length === 0) return null; // Don't show if empty
+
+    const handleRowClick = (supplierId) => {
+        navigate(`/suppliers?openSupplierId=${supplierId}`);
+    };
 
     return (
         <div className="bg-red-50 rounded-xl shadow-lg p-6 border border-red-200">
@@ -53,12 +60,20 @@ function LowRatedSuppliersWidget() {
                     </thead>
                     <tbody className="divide-y divide-red-50">
                         {suppliers.map(supplier => (
-                            <tr key={supplier.supplier_id} className="hover:bg-red-50 transition-colors">
+                            <tr
+                                key={supplier.supplier_id}
+                                onClick={() => handleRowClick(supplier.supplier_id)}
+                                className="hover:bg-red-50 transition-colors cursor-pointer"
+                            >
                                 <td className="px-4 py-3 text-sm text-gray-800 font-medium">{supplier.name}</td>
                                 <td className="px-4 py-3 text-sm">
-                                    <div className="flex items-center gap-2">
-                                        <span className="font-bold text-red-600">{parseFloat(supplier.average_rating).toFixed(1)}</span>
-                                        <Rating value={parseFloat(supplier.average_rating)} readOnly size="small" max={1} />
+                                    <div className="flex items-center gap-2 justify-end" dir="ltr">
+                                        <Rating
+                                            value={parseFloat(supplier.average_rating)}
+                                            readOnly
+                                            size="small"
+                                            precision={0.5}
+                                        />
                                     </div>
                                 </td>
                                 <td className="px-4 py-3 text-sm text-gray-600">{supplier.total_reviews}</td>

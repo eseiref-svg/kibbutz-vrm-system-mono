@@ -3,6 +3,33 @@
 מדריך שינויים מלא בין כל גרסה וגרסה של מערכת ניהול הספקים (VRM).
 
 
+## Version 2.7.1 - Financial Accuracy & UI Polishing
+**Release Date:** 23/01/2026
+**Type:** Stability & Bug Fixes
+
+### שינויים עיקריים ושיפורים (Key Changes & Improvements)
+
+#### 1. תקינת תצוגה פיננסית (Financial Display Standardization)
+- **Positive Value Display** - כל הסכומים במערכת מוצגים כעת כערכים חיוביים מוחלטים (`Math.abs`), כאשר ההקשר (צבע/מיקום) קובע אם מדובר בהכנסה או הוצאה.
+- **Improved UX** - הסרת אי-הבהירות שנגרמה מהצגת מינוסים בטבלאות הוצאות.
+- **Negative Results** - תוצאות חישוב שליליות (כמו גירעון) מוצגות בפורמט חשבונאי תקני: `₪(1,000.00)`.
+
+#### 2. דיוק חישובים בשרת (Backend Calculation Accuracy)
+- **Logic Correction** - תוקנה לוגיקת חישוב המאזנים וההוצאות בשרת. החישוב מתבסס כעת על **סוג העסקה** (Payment Request vs Sale) ולא על הסימן המתמטי (+/-) של הסכום במסד הנתונים.
+- **Community Branch Fix** - תוקן חישוב "ביצוע בפועל" בענפים קהילתיים שהתעלם מהוצאות שנשמרו כערכים חיוביים.
+- **System-Wide Audit** - בוצע יישור קו בכל נקודות הקצה (דשבורד גזבר, דוחות, סיכומים) למניעת עיוותי נתונים.
+
+#### 3. שדרוגי פורטל ענפים (Branch Portal Refinements)
+- **Enhanced Supplier Table** - הוספת עמודות "מזהה ספק" ו"תיאור" לטבלת התשלומים, ליצירת אחידות מלאה עם טבלת הלקוחות.
+- **Visual Alignment** - קיבוע רוחב עמודות זהה (40/20/20/20) בשתי הטבלאות למראה נקי ומקצועי.
+
+#### 4. תיקונים נוספים (General Fixes)
+- **Currency Symbol** - יישור סמל השקל (`₪`) לצד שמאל של המספר בכל המערכת.
+- **Crash Fix** - תיקון שגיאת `ReferenceError` בפורטל הענפים שגרמה לקריסה במעבר לטאב ספקים.
+- **Notifications** - שיפור ניסוח התראות המערכת למראה רשמי ונקי יותר.
+
+---
+
 ## Version 2.7.0 - Stability & Refinements
 **Release Date:** 15/01/2026
 **Type:** Stability & UI/UX Refinements

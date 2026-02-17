@@ -12,7 +12,6 @@ import LowRatedSuppliersWidget from '../components/dashboard/LowRatedSuppliersWi
 import UnifiedSupplierForm from '../components/shared/UnifiedSupplierForm';
 import ApproveClientModal from '../components/dashboard/ApproveClientModal';
 import Button from '../components/shared/Button';
-import Select from '../components/shared/Select';
 import { useNotifications } from '../context/NotificationContext';
 import { useAuth } from '../context/AuthContext';
 import jsPDF from 'jspdf';
@@ -25,39 +24,46 @@ function DashboardPage() {
   const [summaryData, setSummaryData] = useState(null);
   const [requests, setRequests] = useState([]);
   const [clientRequests, setClientRequests] = useState([]);
-  const [supplierFields, setSupplierFields] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [period, setPeriod] = useState('monthly');
+  const [period] = useState('monthly');
   const [showAddSupplierForm, setShowAddSupplierForm] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [showApproveClientModal, setShowApproveClientModal] = useState(false);
   const [selectedClientRequest, setSelectedClientRequest] = useState(null);
 
-  const fetchData = useCallback(() => {
-    setLoading(true);
+  const fetchData = useCallback((isBackground = false) => {
+    if (!isBackground) setLoading(true);
     setError('');
     const summaryPromise = api.get('/dashboard/summary', { params: { period } });
     const requestsPromise = api.get('/supplier-requests/pending');
     const clientRequestsPromise = api.get('/client-requests', { params: { status: 'pending' } });
-    const fieldsPromise = api.get('/supplier-fields');
 
-    Promise.all([summaryPromise, requestsPromise, clientRequestsPromise, fieldsPromise])
-      .then(([summaryRes, requestsRes, clientRequestsRes, fieldsRes]) => {
+    Promise.all([summaryPromise, requestsPromise, clientRequestsPromise])
+      .then(([summaryRes, requestsRes, clientRequestsRes]) => {
         setSummaryData(summaryRes.data);
-        setRequests(requestsRes.data);
-        setClientRequests(clientRequestsRes.data || []);
-        setSupplierFields(fieldsRes.data);
+        setRequests(requestsRes.data.data || requestsRes.data || []);
+        setClientRequests(clientRequestsRes.data.data || clientRequestsRes.data || []);
       })
       .catch(err => {
         console.error("Error fetching dashboard data:", err);
-        setError('שגיאה בטעינת הנתונים.');
+        // Only show error on screen if it's an initial load, otherwise just log it
+        if (!isBackground) setError('שגיאה בטעינת הנתונים.');
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (!isBackground) setLoading(false);
+      });
   }, [period]);
 
   useEffect(() => {
-    fetchData();
+    fetchData(); // Initial load
+
+    // Poll for updates every 10 seconds
+    const intervalId = setInterval(() => {
+      fetchData(true);
+    }, 10000);
+
+    return () => clearInterval(intervalId);
   }, [fetchData]);
 
   const handleRequestUpdate = (requestId) => {
@@ -223,7 +229,7 @@ function DashboardPage() {
                 </div>
 
                 <div className="text-orange-600 font-bold mb-4 text-right">
-                  תשלומים קרובים (החודש): {formatCurrency(summaryData.upcomingPayments || 0)}
+                  צפי תזרים (החודש): {formatCurrency(summaryData.upcomingPayments || 0)}
                 </div>
 
                 <div className="text-red-600 font-bold mb-4 text-right">

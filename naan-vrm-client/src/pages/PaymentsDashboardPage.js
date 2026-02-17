@@ -11,6 +11,9 @@ const PaymentsDashboardPage = () => {
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({});
   const [activeTab, setActiveTab] = useState('all'); // all, overdue, upcoming
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [limit] = useState(20);
 
   const fetchStats = useCallback(async () => {
     try {
@@ -29,42 +32,48 @@ const PaymentsDashboardPage = () => {
   const fetchPayments = useCallback(async () => {
     try {
       const params = {
-        // Limit to current month
-        currentMonth: true
+        page: currentPage,
+        limit: limit
       };
 
       // Add filters
       if (filters.branchId && filters.branchId !== 'all') {
         params.branchId = filters.branchId;
       }
-      if (filters.status && filters.status !== 'all') {
-        params.status = filters.status;
-      }
       if (filters.type && filters.type !== 'all') {
         params.type = filters.type;
       }
 
       // Choose endpoint based on active tab
+      // Tabs control WHAT data to fetch, filters control HOW to filter it
       let endpoint = '/payments/all';
       if (activeTab === 'overdue') {
         endpoint = '/payments/overdue';
-        params.status = 'overdue';
       } else if (activeTab === 'upcoming_week') {
         endpoint = '/payments/upcoming';
-        params.status = 'upcoming';
         params.interval = '7 days';
       } else if (activeTab === 'upcoming_month') {
         endpoint = '/payments/upcoming';
-        params.status = 'upcoming';
         params.interval = '1 month';
       }
 
       const response = await api.get(endpoint, { params });
-      setPayments(response.data);
+
+      // Handle paginated response
+      if (response.data.data) {
+        setPayments(response.data.data);
+        setTotalPages(Math.ceil(response.data.total / limit));
+        setCurrentPage(parseInt(response.data.page));
+      } else {
+        // Fallback for old format
+        setPayments(response.data);
+        setTotalPages(1);
+        setCurrentPage(1);
+      }
     } catch (error) {
       console.error('Error fetching payments:', error);
     }
-  }, [filters, activeTab]);
+  }, [filters, activeTab, currentPage, limit]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -79,6 +88,10 @@ const PaymentsDashboardPage = () => {
       setLoading(false);
     }
   }, [fetchStats, fetchPayments]);
+
+  useEffect(() => {
+    setCurrentPage(1); // Reset to page 1 when tab or filters change
+  }, [activeTab, filters]);
 
   useEffect(() => {
     fetchData();
@@ -179,6 +192,8 @@ const PaymentsDashboardPage = () => {
           payments={payments}
           loading={loading}
           onRefresh={handleRefresh}
+          pagination={{ current: currentPage, totalPages: totalPages }}
+          onPageChange={(page) => setCurrentPage(page)}
         />
       </div>
 

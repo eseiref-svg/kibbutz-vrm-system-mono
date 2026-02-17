@@ -1,23 +1,24 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import api from '../../api/axiosConfig';
 import { Rating } from '@mui/material';
 import Button from '../shared/Button';
 import Input from '../shared/Input';
 import ReviewList from '../shared/ReviewList';
-import StandardDetailsCard from '../shared/StandardDetailsCard';
 import StandardDataRow from '../shared/StandardDataRow';
 import CreatePaymentRequestForm from '../branch-portal/CreatePaymentRequestForm';
-import { LuCreditCard } from 'react-icons/lu';
+import SupplierPaymentHistory from './SupplierPaymentHistory';
+import { FiArrowRight, FiMoreVertical, FiPhone, FiMail, FiMapPin, FiCheckCircle, FiXCircle } from 'react-icons/fi';
 
 function SupplierDetailsCard({ supplier, onBackToList, onEdit, onStatusToggle, mode = 'treasurer', branchId }) {
-  const [activeTab, setActiveTab] = useState('details');
   const [reviews, setReviews] = useState([]);
   const [loadingReviews, setLoadingReviews] = useState(false);
   const [newRating, setNewRating] = useState(0);
   const [newComment, setNewComment] = useState('');
   const [isPaymentRequestOpen, setIsPaymentRequestOpen] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
 
-  const fetchReviews = useCallback(() => {
+  // Load reviews on mount
+  useEffect(() => {
     if (!supplier) return;
     setLoadingReviews(true);
     api.get(`/suppliers/${supplier.supplier_id}/reviews`)
@@ -27,12 +28,6 @@ function SupplierDetailsCard({ supplier, onBackToList, onEdit, onStatusToggle, m
       .catch(error => console.error("Error fetching reviews:", error))
       .finally(() => setLoadingReviews(false));
   }, [supplier]);
-
-  useEffect(() => {
-    if (activeTab === 'performance') {
-      fetchReviews();
-    }
-  }, [activeTab, fetchReviews]);
 
   const handleReviewSubmit = async () => {
     if (newRating === 0) {
@@ -47,7 +42,8 @@ function SupplierDetailsCard({ supplier, onBackToList, onEdit, onStatusToggle, m
       });
       setNewRating(0);
       setNewComment('');
-      fetchReviews();
+      // Reload reviews
+      api.get(`/suppliers/${supplier.supplier_id}/reviews`).then(res => setReviews(res.data));
       alert('הדירוג נשלח בהצלחה!');
     } catch (err) {
       console.error("Error submitting review:", err);
@@ -57,157 +53,180 @@ function SupplierDetailsCard({ supplier, onBackToList, onEdit, onStatusToggle, m
 
   const isActive = supplier.is_active !== false;
 
-  // Determine which tabs to show based on functionality
-  // For branch_manager, hide payment history.
-  const tabs = [
-    { id: 'details', label: 'פרטים נוספים' },
-    { id: 'performance', label: 'ביצועים ודירוג' }
-  ];
-
-  if (mode === 'treasurer') {
-    tabs.splice(1, 0, { id: 'payment_history', label: 'היסטוריית תשלומים' });
-  }
-
   return (
-    <>
-      <StandardDetailsCard
-        title={supplier.name}
-        subtitle={
-          <div className="flex items-center gap-2">
-            {mode === 'treasurer' && ( // Show status only for Treasurer
-              isActive ? (
-                <span className="bg-green-100 text-green-800 text-xs px-2 py-0.5 rounded-full font-medium">פעיל</span>
-              ) : (
-                <span className="bg-red-100 text-red-800 text-xs px-2 py-0.5 rounded-full font-medium">לא פעיל</span>
-              )
-            )}
-            <span className="bg-gray-100 text-gray-800 text-xs px-2 py-0.5 rounded-full font-medium">
-              {supplier.field || 'לא שויך'}
-            </span>
+    <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden animate-fade-in relative">
+
+      {/* 1. Minimalist Header */}
+      <div className="px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4 bg-white border-b border-gray-100">
+        <div className="flex items-center gap-4 w-full md:w-auto">
+          {onBackToList && (
+            <button onClick={onBackToList} className="text-gray-400 hover:text-gray-800 transition-colors p-1">
+              <FiArrowRight size={24} />
+            </button>
+          )}
+          <div className="flex flex-col">
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold text-gray-900">{supplier.name}</h1>
+              {mode === 'treasurer' && (
+                <span className={`px-2 py-0.5 text-xs font-semibold rounded-full flex items-center gap-1 ${isActive ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                  {isActive ? <FiCheckCircle size={10} /> : <FiXCircle size={10} />}
+                  {isActive ? 'פעיל' : 'לא פעיל'}
+                </span>
+              )}
+              {supplier.field && (
+                <span className="bg-gray-100 text-gray-600 px-2 py-0.5 text-xs font-semibold rounded-full border border-gray-200">
+                  {supplier.field}
+                </span>
+              )}
+            </div>
           </div>
-        }
-        isActive={mode === 'treasurer' ? isActive : true} // Always show "active" color logic or override? StandardDetailsCard uses isActive for border color. Let's keep it true or based on actual status but hide the *text* indicator above if needed. Using isActive from props affects visual "ban" look. Branch manager might want to see if banned? User said: "remove the 'Active' status indicator below the supplier's name." -> Done in subtitle.
+        </div>
 
-        onBack={onBackToList}
-        // Only pass onEdit/onStatusToggle if treasurer
-        onEdit={mode === 'treasurer' ? () => onEdit(supplier) : undefined}
-        onStatusToggle={mode === 'treasurer' ? () => onStatusToggle(supplier) : undefined}
-        entityType="ספק"
-
-        // Inject Custom Action Button
-        extraActions={
-          <Button
-            variant="primary"
-            onClick={() => setIsPaymentRequestOpen(true)}
-          >
-            צור דרישת תשלום
+        <div className="flex items-center gap-3 w-full md:w-auto justify-end">
+          {/* Primary Action */}
+          <Button variant="primary" onClick={() => setIsPaymentRequestOpen(true)} className="flex items-center gap-2 shadow-sm">
+            <span>+</span> צור דרישת תשלום
           </Button>
-        }
-        showStatus={false}
-      >
-        {/* Basic Info Header in Content */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8 p-4 bg-blue-50/50 rounded-xl border border-blue-100">
-          <StandardDataRow label="ח.פ." value={supplier.supplier_id} />
-          <StandardDataRow label="איש קשר" value={supplier.poc_name || 'לא הוזן'} />
-          <StandardDataRow label="טלפון" value={supplier.poc_phone || 'לא הוזן'} />
-          <StandardDataRow label="אימייל" value={supplier.poc_email || 'לא הוזן'} />
-        </div>
 
-        {/* Tabs */}
-        <div className="border-b border-gray-200 mb-6">
-          <div className="flex gap-2">
-            {tabs.map((tab) => (
+          {/* Secondary Actions (Menu) - Only for Treasurer */}
+          {mode === 'treasurer' && (
+            <div className="relative">
               <button
-                key={tab.id}
-                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === tab.id
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-600 hover:text-gray-800'
-                  }`}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => setShowMenu(!showMenu)}
+                className="p-2 text-gray-500 hover:bg-gray-100 rounded-full transition-colors"
               >
-                {tab.label}
+                <FiMoreVertical size={20} />
               </button>
-            ))}
-          </div>
+
+              {showMenu && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)}></div>
+                  <div className="absolute left-0 top-full mt-2 w-48 bg-white rounded-lg shadow-xl border border-gray-100 z-20 py-1 overflow-hidden">
+                    {onEdit && (
+                      <button
+                        className="w-full text-right px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                        onClick={() => { setShowMenu(false); onEdit(supplier); }}
+                      >
+                        ערוך פרטי ספק
+                      </button>
+                    )}
+                    {onStatusToggle && (
+                      <button
+                        className={`w-full text-right px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-2 ${isActive ? 'text-red-600' : 'text-green-600'}`}
+                        onClick={() => { setShowMenu(false); onStatusToggle(supplier); }}
+                      >
+                        {isActive ? 'הקפא ספק' : 'הפעל ספק'}
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </div>
+      </div>
 
-        {/* Tab Content */}
-        <div className="bg-gray-50 rounded-lg border border-gray-200 p-6 min-h-[200px]">
-          {activeTab === 'details' && (
-            <div className="space-y-4">
-              <h3 className="text-lg font-bold text-gray-800 mb-4 border-b border-blue-200 pb-2">כתובת ומיקום</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <StandardDataRow label="עיר" value={supplier.city || 'לא הוזן'} />
-                <StandardDataRow label="רחוב" value={`${supplier.street_name || 'לא הוזן'} ${supplier.house_no || ''}`} />
-                <StandardDataRow label="מיקוד" value={supplier.zip_code || 'לא הוזן'} />
-              </div>
+      {/* 2. Contextual Info Bar */}
+      <div className="px-6 py-3 bg-gray-50 border-b border-gray-200 flex flex-wrap gap-6 items-center text-sm text-gray-600">
+        <div className="flex items-center gap-2">
+          <span className="font-semibold">ח.פ:</span>
+          <span className="font-mono bg-white px-1.5 py-0.5 rounded border border-gray-200 text-gray-800">{supplier.supplier_id}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="font-semibold">ענף:</span>
+          <span>{supplier.field || 'כללי'}</span>
+        </div>
+        {supplier.poc_phone && (
+          <a href={`tel:${supplier.poc_phone}`} className="flex items-center gap-1.5 text-blue-600 hover:underline hover:text-blue-800 transition-colors">
+            <FiPhone size={14} />
+            <span>{supplier.poc_phone}</span>
+          </a>
+        )}
+        {supplier.poc_email && (
+          <a href={`mailto:${supplier.poc_email}`} className="flex items-center gap-1.5 text-blue-600 hover:underline hover:text-blue-800 transition-colors">
+            <FiMail size={14} />
+            <span>{supplier.poc_email}</span>
+          </a>
+        )}
+        {supplier.city && (
+          <div className="flex items-center gap-1.5 text-gray-500">
+            <FiMapPin size={14} />
+            <span>{supplier.city}, {supplier.street_name}</span>
+          </div>
+        )}
+      </div>
+
+      {/* 3. Main Scrollable Content */}
+      <div className="p-8 space-y-10 bg-gray-50/30">
+
+        {/* Payment History Section */}
+        {mode === 'treasurer' && (
+          <section className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="bg-gray-50 px-6 py-3 border-b border-gray-200">
+              <h3 className="font-bold text-gray-800">היסטוריית תשלומים</h3>
             </div>
-          )}
-
-          {activeTab === 'payment_history' && (
-            <div>
-              <h3 className="text-lg font-semibold mb-3">היסטוריית תשלומים</h3>
-              <p className="text-gray-500 italic">יוצג בקרוב...</p>
+            <div className="p-4">
+              <SupplierPaymentHistory supplier={supplier} />
             </div>
-          )}
+          </section>
+        )}
 
-          {activeTab === 'performance' && (
-            <div className="space-y-8">
-              {/* Add Review Form */}
-              <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
-                <h3 className="text-lg font-bold mb-4 text-gray-800">הוסף דירוג חדש</h3>
-
-                <div className="flex items-center gap-3 mb-4">
-                  <span className="text-sm font-medium">דירוג (כוכבים):</span>
+        {/* Performance & Reviews Section */}
+        <section>
+          <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+            ביצועים ודירוג
+          </h3>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Add Review */}
+            <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+              <h4 className="font-bold text-gray-800 mb-4 border-b pb-2">הוסף חוות דעת</h4>
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-medium text-gray-600">דירוג:</span>
                   <Rating
                     name="new-rating"
                     value={newRating}
                     onChange={(event, newValue) => setNewRating(newValue)}
                   />
                 </div>
-
                 <Input
-                  label="הערות נוספות (אופציונלי)"
+                  label="הערה (אופציונלי)"
                   value={newComment}
                   onChange={(e) => setNewComment(e.target.value)}
-                  className="mb-4"
+                  placeholder="כתוב כמה מילים..."
+                  multiline
                 />
-                <div className="flex justify-end">
-                  <Button variant="primary" onClick={handleReviewSubmit}>שלח דירוג</Button>
+                <div className="flex justify-end mt-2">
+                  <Button variant="primary" size="sm" onClick={handleReviewSubmit}>שלח דירוג</Button>
                 </div>
               </div>
-
-              {/* Reviews List */}
-              <div>
-                <h3 className="text-lg font-bold mb-4 text-gray-800">היסטוריית דירוגים</h3>
-                {loadingReviews ? (
-                  <p>טוען דירוגים...</p>
-                ) : (
-                  <ReviewList reviews={reviews} />
-                )}
-              </div>
             </div>
-          )}
-        </div>
-      </StandardDetailsCard>
+
+            {/* Recent Reviews */}
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 max-h-[400px] overflow-y-auto">
+              <h4 className="font-bold text-gray-800 mb-4 sticky top-0 bg-white pb-2 border-b z-10">היסטוריית דירוגים</h4>
+              {loadingReviews ? (
+                <div className="text-center py-8 text-gray-400">טוען...</div>
+              ) : (
+                <ReviewList reviews={reviews} />
+              )}
+            </div>
+          </div>
+        </section>
+      </div>
 
       {/* Payment Request Modal */}
       <CreatePaymentRequestForm
         open={isPaymentRequestOpen}
         onClose={() => setIsPaymentRequestOpen(false)}
         supplier={supplier}
-        branchId={branchId || (supplier && supplier.branch_id) || '1'} // Default to 1 if no context (e.g. treasurer), or pass context props
-        // Note: For Treasurer, branchId 1 (Community) is often default for general expenses, or they should select. 
-        // CreatePaymentRequestForm is built for Branch Portal where branchId is fixed. 
-        // We might need to handle branch selection for Treasurer later. 
-        // For now, passing '1' (Kibbutz) as fallback logic for Treasurer if not provided.
+        branchId={branchId || (supplier && supplier.branch_id) || '1'}
         autoApprove={mode === 'treasurer'}
         onSuccess={() => {
           alert(mode === 'treasurer' ? 'הדרישה נוצרה ואושרה בהצלחה' : 'הדרישה נשלחה לאישור');
-          // Refresh logic if needed
         }}
       />
-    </>
+    </div>
   );
 }
 

@@ -108,7 +108,7 @@ function RecentSalesWidget({ branchId }) {
                     {sale.client_number || `#${sale.client_id}`}
                   </td>
                   <td className="py-2 px-3 font-semibold text-gray-900">
-                    {formatCurrency(sale.value)}
+                    {formatCurrency(Math.abs(sale.value))}
                   </td>
                   <td className="py-2 px-3 text-gray-700">
                     {formatDate(sale.transaction_date)}

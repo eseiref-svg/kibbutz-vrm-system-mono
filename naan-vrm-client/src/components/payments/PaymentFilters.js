@@ -7,7 +7,6 @@ const PaymentFilters = ({ onFilterChange }) => {
   const [branches, setBranches] = useState([]);
   const [filters, setFilters] = useState({
     branchId: 'all',
-    status: 'all',
     type: 'all',
   });
 
@@ -40,7 +39,6 @@ const PaymentFilters = ({ onFilterChange }) => {
   const handleReset = () => {
     setFilters({
       branchId: 'all',
-      status: 'all',
       type: 'all',
     });
   };
@@ -57,7 +55,7 @@ const PaymentFilters = ({ onFilterChange }) => {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Filter by branch */}
         <div>
           <Select
@@ -69,24 +67,6 @@ const PaymentFilters = ({ onFilterChange }) => {
               { value: 'all', label: 'הכל' },
               ...branches.map(branch => ({ value: branch.branch_id, label: branch.name }))
             ] : [{ value: 'all', label: `טוען ענפים... (${branches.length})` }]}
-          />
-        </div>
-
-        {/* Filter by payment status */}
-        <div>
-          <Select
-            label="מצב תשלום"
-            value={filters.status}
-            onChange={(e) => handleFilterChange('status', e.target.value)}
-            placeholder=""
-            options={[
-              { value: 'all', label: 'הכל' },
-              { value: 'overdue', label: 'באיחור' },
-              { value: 'due_today', label: 'להיום' },
-              { value: 'upcoming', label: 'קרוב (7 ימים)' },
-              { value: 'future', label: 'עתידי' },
-              { value: 'paid', label: 'שולם' }
-            ]}
           />
         </div>
 
@@ -107,7 +87,7 @@ const PaymentFilters = ({ onFilterChange }) => {
       </div>
 
       {/* Active filter indicator */}
-      {(filters.branchId || filters.status !== 'all' || filters.type !== 'all') && (
+      {(filters.branchId !== 'all' || filters.type !== 'all') && (
         <div className="mt-4 flex items-center text-sm text-gray-600">
           <span>סינון פעיל</span>
         </div>

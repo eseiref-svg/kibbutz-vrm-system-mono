@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import useDebounce from '../hooks/useDebounce';
 import api from '../api/axiosConfig';
 import SuppliersTable from '../components/SuppliersTable';
 import SupplierSearch from '../components/suppliers/SupplierSearch';
@@ -6,29 +7,50 @@ import SupplierDetailsCard from '../components/suppliers/SupplierDetailsCard';
 import UnifiedSupplierForm from '../components/shared/UnifiedSupplierForm';
 import Button from '../components/shared/Button';
 
+import { useLocation } from 'react-router-dom';
+
 function SuppliersPage() {
   const [suppliers, setSuppliers] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedQuery = useDebounce(searchQuery, 500);
   const [searchCriteria, setSearchCriteria] = useState('name');
   const [loading, setLoading] = useState(true);
   const [selectedSupplier, setSelectedSupplier] = useState(null);
+
+  const location = useLocation();
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [limit] = useState(20);
 
   // Unified Form State for Add/Edit
   const [showUnifiedForm, setShowUnifiedForm] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState(null); // If set, we are editing. If null, adding.
 
-  const fetchSuppliers = (criteria = '', query = '') => {
+  const fetchSuppliers = (criteria = '', query = '', page = 1) => {
     setLoading(true);
     // User requested only APPROVED suppliers in the table.
     api.get(`/suppliers/search`, {
       params: {
         criteria: criteria.trim(),
         query: query.trim(),
-        status: 'approved' // Strict filter
+        status: 'approved', // Strict filter
+        page: page,
+        limit: limit
       }
     })
       .then(response => {
-        setSuppliers(response.data);
+        if (response.data.data) {
+          setSuppliers(response.data.data);
+          setTotalPages(Math.ceil(response.data.total / limit));
+          setCurrentPage(parseInt(response.data.page));
+        } else {
+          // Fallback
+          setSuppliers(response.data);
+          setTotalPages(1);
+          setCurrentPage(1);
+        }
       })
       .catch(error => {
         console.error("There was an error fetching the suppliers!", error);
@@ -42,13 +64,36 @@ function SuppliersPage() {
     fetchSuppliers();
   }, []);
 
+  // deeply link to specific supplier if ID is in URL
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const openSupplierId = params.get('openSupplierId');
+
+    if (openSupplierId) {
+      // Fetch specific supplier details
+      api.get(`/suppliers/${openSupplierId}`)
+        .then(res => {
+          setSelectedSupplier(res.data);
+          // Optional: clear the param from URL without reload so refresh doesn't reopen? 
+          // For now leaving it is fine, or user might want to bookmark it.
+        })
+        .catch(err => console.error("Could not load requested supplier", err));
+    }
+  }, [location.search]);
+
+  useEffect(() => {
+    fetchSuppliers(searchCriteria, debouncedQuery, 1);
+  }, [debouncedQuery, searchCriteria]);
+
   const handleSearch = () => {
-    fetchSuppliers(searchCriteria, searchQuery);
+    // Kept for Enter key compatibility
+    fetchSuppliers(searchCriteria, searchQuery, 1);
   };
 
   const handleClearSearch = () => {
     setSearchQuery('');
-    fetchSuppliers('', '');
+    setSearchQuery('');
+    fetchSuppliers('', '', 1);
   };
 
   const handleFormSuccess = async (data) => {
@@ -155,7 +200,7 @@ function SuppliersPage() {
           mode="treasurer"
           onBackToList={() => {
             setSelectedSupplier(null);
-            fetchSuppliers(searchCriteria, searchQuery);
+            fetchSuppliers(searchCriteria, searchQuery, currentPage);
           }}
           onEdit={openEditForm}
           onStatusToggle={() => handleStatusToggle(selectedSupplier)}
@@ -180,6 +225,8 @@ function SuppliersPage() {
                 onDeactivate={handleStatusToggle}
                 onEdit={openEditForm}
                 onRowClick={setSelectedSupplier}
+                pagination={{ current: currentPage, totalPages: totalPages }}
+                onPageChange={(page) => fetchSuppliers(searchCriteria, debouncedQuery, page)}
               />
             )}
           </div>

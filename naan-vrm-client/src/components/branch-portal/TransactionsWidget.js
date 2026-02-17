@@ -4,10 +4,14 @@ import { formatCurrency } from '../../utils/formatCurrency';
 
 const TransactionsWidget = forwardRef(({ branchId, supplierTransactions, isBusiness = true }, ref) => {
   const [sales, setSales] = useState([]);
+  const [internalSupplierTransactions, setInternalSupplierTransactions] = useState([]); // State for internal fetch
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState(isBusiness ? 'incoming' : 'outgoing'); // Default based on branch type
-  const [statusFilter, setStatusFilter] = useState('open'); // Default to 'Waiting'
+  const [statusFilter, setStatusFilter] = useState('all'); // Default to 'All'
+
+  // Use passed transactions OR internally fetched ones
+  const transactionsToUse = supplierTransactions || internalSupplierTransactions;
 
   useEffect(() => {
     setActiveTab(isBusiness ? 'incoming' : 'outgoing');
@@ -22,17 +26,30 @@ const TransactionsWidget = forwardRef(({ branchId, supplierTransactions, isBusin
     try {
       setLoading(true);
       setError('');
-      const response = await api.get('/sales/recent', {
-        params: { branchId, limit: 10 }
-      });
-      setSales(response.data || []);
+
+      const promises = [
+        api.get('/sales/recent', { params: { branchId, limit: 10 } })
+      ];
+
+      // If no transactions passed, fetch them internally
+      if (!supplierTransactions) {
+        promises.push(api.get(`/branches/${branchId}/transactions`, { params: { limit: 20 } }));
+      }
+
+      const results = await Promise.all(promises);
+      setSales(results[0].data || []);
+
+      if (!supplierTransactions && results[1]) {
+        setInternalSupplierTransactions(results[1].data || []);
+      }
+
     } catch (error) {
-      console.error('Error fetching recent sales:', error);
-      setError('שגיאה בטעינת דרישות תשלום אחרונות');
+      console.error('Error fetching transactions:', error);
+      setError('שגיאה בטעינת נתונים');
     } finally {
       setLoading(false);
     }
-  }, [branchId]);
+  }, [branchId, supplierTransactions]);
 
   useEffect(() => {
     fetchRecentSales();
@@ -62,8 +79,6 @@ const TransactionsWidget = forwardRef(({ branchId, supplierTransactions, isBusin
     }
   };
 
-  // Removed local formatCurrency
-
   const formatDate = (dateString) => {
     if (!dateString) return '-';
     return new Date(dateString).toLocaleDateString('he-IL');
@@ -74,6 +89,9 @@ const TransactionsWidget = forwardRef(({ branchId, supplierTransactions, isBusin
     today.setHours(0, 0, 0, 0);
 
     return data.filter(item => {
+      if (statusFilter === 'all') {
+        return item.status === 'open' || item.status === 'paid';
+      }
       if (statusFilter === 'paid') {
         return item.status === 'paid';
       }
@@ -98,9 +116,7 @@ const TransactionsWidget = forwardRef(({ branchId, supplierTransactions, isBusin
   };
 
   const processedSales = getSortedData(getFilteredData(sales));
-  const processedSupplierTransactions = getSortedData(getFilteredData(supplierTransactions || []));
-
-
+  const processedSupplierTransactions = getSortedData(getFilteredData(transactionsToUse || []));
 
   return (
     <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200 mt-6">
@@ -128,7 +144,7 @@ const TransactionsWidget = forwardRef(({ branchId, supplierTransactions, isBusin
             : 'text-gray-600 hover:text-gray-800'
             }`}
         >
-          לשלם לספקים ({supplierTransactions?.length || 0})
+          לשלם לספקים ({processedSupplierTransactions?.length || 0})
         </button>
       </div>
 
@@ -140,6 +156,7 @@ const TransactionsWidget = forwardRef(({ branchId, supplierTransactions, isBusin
           onChange={(e) => setStatusFilter(e.target.value)}
           className="px-3 py-1 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
+          <option value="all">הכל</option>
           <option value="open">ממתין לתשלום</option>
           <option value="paid">שולם</option>
           <option value="overdue">ממתין לתשלום - באיחור</option>
@@ -162,11 +179,10 @@ const TransactionsWidget = forwardRef(({ branchId, supplierTransactions, isBusin
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="bg-gray-100">
-                  <th className="py-2 px-3 text-right font-semibold">לקוח</th>
-                  <th className="py-2 px-3 text-right font-semibold">מספר לקוח</th>
-                  <th className="py-2 px-3 text-right font-semibold">סכום</th>
-                  <th className="py-2 px-3 text-right font-semibold">תאריך עסקה</th>
-                  <th className="py-2 px-3 text-right font-semibold">סטטוס</th>
+                  <th className="py-2 px-3 text-right font-semibold w-[40%]">לקוח</th>
+                  <th className="py-2 px-3 text-right font-semibold w-[20%]">תאריך יעד</th>
+                  <th className="py-2 px-3 text-right font-semibold w-[20%]">סכום</th>
+                  <th className="py-2 px-3 text-right font-semibold w-[20%]">סטטוס</th>
                 </tr>
               </thead>
               <tbody>
@@ -176,18 +192,16 @@ const TransactionsWidget = forwardRef(({ branchId, supplierTransactions, isBusin
                     <tr key={sale.sale_id} className="border-b hover:bg-gray-50">
                       <td className="py-2 px-3">
                         <div className="font-semibold text-gray-800">{sale.client_name}</div>
+                        <div className="text-xs text-gray-500">{sale.client_number || `#${sale.client_id}`}</div>
                         {sale.description && (
-                          <div className="text-xs text-gray-500">{sale.description}</div>
+                          <div className="text-xs text-gray-400">{sale.description}</div>
                         )}
                       </td>
                       <td className="py-2 px-3 text-gray-700">
-                        {sale.client_number || `#${sale.client_id}`}
+                        {formatDate(sale.due_date || sale.transaction_date)}
                       </td>
                       <td className="py-2 px-3 font-semibold text-gray-900">
-                        {formatCurrency(sale.value)}
-                      </td>
-                      <td className="py-2 px-3 text-gray-700">
-                        {formatDate(sale.transaction_date)}
+                        {formatCurrency(Math.abs(sale.value))}
                       </td>
                       <td className="py-2 px-3">
                         <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${statusInfo.color}`}>
@@ -204,17 +218,17 @@ const TransactionsWidget = forwardRef(({ branchId, supplierTransactions, isBusin
         )
       ) : (
         // Supplier transactions
-        !supplierTransactions || processedSupplierTransactions.length === 0 ? (
+        (!transactionsToUse || processedSupplierTransactions.length === 0) ? (
           <p className="text-gray-600 text-center py-4">{statusFilter !== 'all' ? 'אין תוצאות תואמות' : 'לא נמצאו עסקאות אחרונות עבור ענף זה.'}</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="bg-gray-100">
-                  <th className="py-2 px-3 text-right font-semibold">ספק</th>
-                  <th className="py-2 px-3 text-right font-semibold">תאריך יעד</th>
-                  <th className="py-2 px-3 text-right font-semibold">סכום</th>
-                  <th className="py-2 px-3 text-right font-semibold">סטטוס</th>
+                  <th className="py-2 px-3 text-right font-semibold w-[40%]">ספק</th>
+                  <th className="py-2 px-3 text-right font-semibold w-[20%]">תאריך יעד</th>
+                  <th className="py-2 px-3 text-right font-semibold w-[20%]">סכום</th>
+                  <th className="py-2 px-3 text-right font-semibold w-[20%]">סטטוס</th>
                 </tr>
               </thead>
               <tbody>
@@ -222,14 +236,18 @@ const TransactionsWidget = forwardRef(({ branchId, supplierTransactions, isBusin
                   const statusInfo = getStatusLabel(tx.status);
                   return (
                     <tr key={tx.transaction_id} className="border-b hover:bg-gray-50">
-                      <td className="py-2 px-3 font-semibold text-gray-800">
-                        {tx.supplier_name}
+                      <td className="py-2 px-3">
+                        <div className="font-semibold text-gray-800">{tx.supplier_name}</div>
+                        <div className="text-xs text-gray-500">#{tx.supplier_id}</div>
+                        {tx.description && (
+                          <div className="text-xs text-gray-400">{tx.description}</div>
+                        )}
                       </td>
                       <td className="py-2 px-3 text-gray-700">
                         {formatDate(tx.due_date)}
                       </td>
                       <td className="py-2 px-3 font-semibold text-gray-900">
-                        {formatCurrency(tx.value)}
+                        {formatCurrency(Math.abs(tx.value))}
                       </td>
                       <td className="py-2 px-3">
                         <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${statusInfo.color}`}>
@@ -252,4 +270,3 @@ const TransactionsWidget = forwardRef(({ branchId, supplierTransactions, isBusin
 TransactionsWidget.displayName = 'TransactionsWidget';
 
 export default TransactionsWidget;
-

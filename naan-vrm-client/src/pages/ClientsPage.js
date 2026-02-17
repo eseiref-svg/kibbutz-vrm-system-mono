@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import useDebounce from '../hooks/useDebounce';
 import api from '../api/axiosConfig';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
@@ -11,6 +12,7 @@ import Button from '../components/shared/Button';
 function ClientsPage() {
   const [clients, setClients] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedQuery = useDebounce(searchQuery, 500); // 500ms delay
   const [searchCriteria, setSearchCriteria] = useState('name');
   const [loading, setLoading] = useState(true);
   const [selectedClient, setSelectedClient] = useState(null);
@@ -39,8 +41,8 @@ function ClientsPage() {
       // Let's stick to 'all' for now as requested by "minimalist toggle".
     };
 
-    if (searchQuery) {
-      params.query = searchQuery.trim();
+    if (debouncedQuery) {
+      params.query = debouncedQuery.trim();
       params.criteria = searchCriteria;
     }
 
@@ -63,14 +65,14 @@ function ClientsPage() {
       .finally(() => {
         setLoading(false);
       });
-  }, [limit, searchQuery, searchCriteria]);
+  }, [limit, debouncedQuery, searchCriteria]); // Use debounced query dependency
 
   useEffect(() => {
     fetchClients(1);
-  }, [fetchClients]); // Re-fetch when search changes effectively
+  }, [fetchClients]); // Re-fetch when debounced query changes
 
   const handleSearch = () => {
-    setCurrentPage(1);
+    // Manual trigger if needed, but useEffect handles it
     fetchClients(1);
   };
 

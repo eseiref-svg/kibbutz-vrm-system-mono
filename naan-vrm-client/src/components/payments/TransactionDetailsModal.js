@@ -53,7 +53,7 @@ const TransactionDetailsModal = ({ transaction, isOpen, onClose }) => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700">סכום</label>
-                  <p className="mt-1 text-sm text-gray-900 font-semibold">{formatCurrency(transaction.value)}</p>
+                  <p className="mt-1 text-sm text-gray-900 font-semibold">{formatCurrency(Math.abs(transaction.value))}</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700">מצב</label>

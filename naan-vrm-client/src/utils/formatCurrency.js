@@ -28,7 +28,7 @@ export const formatCurrency = (amount) => {
     // We place ₪ immediately before the number.
 
     if (num < 0) {
-        return `(${formattedNumber})₪`;
+        return `₪(${formattedNumber})`;
     }
 
     return `₪${formattedNumber}`;

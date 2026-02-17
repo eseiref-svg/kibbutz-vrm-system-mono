@@ -71,21 +71,23 @@ class AlertService {
     try {
       const userId = transaction.branch_manager_id || 1;
       const message = this.generateNotificationMessage(transaction, alertType, daysUntilDue);
-      const title = this.generateNotificationTitle(alertType, daysUntilDue);
-
-      const query = `
-        INSERT INTO notification (user_id, message, type, is_read, created_at)
-        VALUES ($1, $2, $3, FALSE, NOW())
-        RETURNING *
-      `;
+      // Title logic is available if needed, but message handles content.
 
       const notificationType = alertType === 'payment_overdue' ? 'alert' : 'info';
-      // Concatenate title to message if needed or just drop it. 
-      // Message format in generateNotificationMessage is detailed enough.
+
+      // Updated Query: Send to Branch Manager AND all Admins/Treasurers
+      const query = `
+        INSERT INTO notification (user_id, message, type, is_read, created_at)
+        SELECT DISTINCT user_id, $2, $3, FALSE, NOW()
+        FROM "user"
+        WHERE user_id = $1 OR role IN ('admin', 'treasurer')
+        RETURNING user_id
+      `;
+
       const result = await db.query(query, [userId, message, notificationType]);
 
-      console.log(`Notification sent to user ${userId} for transaction ${transaction.transaction_id}`);
-      return result.rows[0];
+      console.log(`Notification sent to ${result.rowCount} users (Manager + Admins/Treasurers) for transaction ${transaction.transaction_id}`);
+      return result.rows;
     } catch (error) {
       console.error('Error sending notification:', error);
     }

@@ -9,10 +9,10 @@
  * @returns {number} days - number of credit days
  */
 function getCreditDays(paymentTerms) {
-    if (!paymentTerms || paymentTerms === 'immediate') return 0;
+    if (!paymentTerms || paymentTerms === 'immediate' || paymentTerms === 'מיידי') return 0;
 
-    // Format: current_X (e.g., current_30)
-    const match = paymentTerms.match(/current_(\d+)/);
+    // Format: current_X (e.g., current_30) OR Hebrew: שוטף+X / שוטף + X
+    const match = paymentTerms.match(/(?:current_|שוטף\s*\+)(\d+)/);
     if (match && match[1]) {
         return parseInt(match[1], 10);
     }
@@ -32,13 +32,15 @@ function calculateDueDate(transactionDate, terms) {
     let creditDays = 0;
 
     if (typeof terms === 'string') {
-        // Handle new Enum values
-        if (terms === 'immediate') creditDays = 0;
-        else if (terms === 'plus_15') creditDays = 15;
-        else if (terms === 'plus_30') creditDays = 30; // Legacy support
-        else if (terms === 'plus_35') creditDays = 35;
-        else if (terms === 'plus_50') creditDays = 50;
-        else creditDays = getCreditDays(terms); // Fallback to regex
+        const termsLower = terms.toLowerCase();
+
+        // Handle explicit Enum values or specific strings
+        if (termsLower === 'immediate' || terms === 'מיידי') creditDays = 0;
+        else if (termsLower === 'plus_15') creditDays = 15;
+        else if (termsLower === 'plus_30') creditDays = 30; // Legacy
+        else if (termsLower === 'plus_35') creditDays = 35;
+        else if (termsLower === 'plus_50') creditDays = 50;
+        else creditDays = getCreditDays(terms); // Fallback to regex (Handles current_X and shotef+X)
     } else if (typeof terms === 'number') {
         creditDays = terms;
     }
@@ -51,9 +53,10 @@ function calculateDueDate(transactionDate, terms) {
     // If terms are immediate, return the base date (no 5th/20th rule usually?)
     // User said: "Current + 35 payment... will be executed on the 5th or 20th"
     // Does 'immediate' also follow 5th/20th? Usually Immediate means Immediate. 
-    if (terms === 'immediate' || creditDays === 0) {
-        return baseDueDate;
-    }
+    // REMOVED: Early return for immediate. All payments must follow 5th/20th rule.
+    // if (terms === 'immediate' || creditDays === 0) {
+    //     return baseDueDate;
+    // }
 
     // 2. Find next valid payment date (5th or 20th)
     // The date must be >= baseDueDate

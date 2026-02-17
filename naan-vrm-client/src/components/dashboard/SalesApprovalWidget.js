@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../api/axiosConfig';
 import Button from '../shared/Button';
+import Input from '../shared/Input';
+import Select from '../shared/Select';
+import Textarea from '../shared/Textarea';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { calculateDueDate, formatPaymentTerms, PAYMENT_TERMS_OPTIONS } from '../../utils/paymentTerms';
 
@@ -18,6 +21,13 @@ function SalesApprovalWidget({ onRefresh }) {
 
   useEffect(() => {
     fetchPendingTransactions();
+
+    // Auto-refresh every 30 seconds
+    const interval = setInterval(() => {
+      fetchPendingTransactions();
+    }, 30000);
+
+    return () => clearInterval(interval);
   }, []);
 
   const fetchPendingTransactions = async () => {
@@ -171,10 +181,10 @@ function SalesApprovalWidget({ onRefresh }) {
               <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">סוג</th>
               <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-[25%]">יישות (לקוח/ספק)</th>
               <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">מזהה</th>
-              <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">ענף</th>
+              <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">ענף מבקש</th>
               <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">תאריך עסקה</th>
+              <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">מועד תשלום צפוי</th>
               <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">סכום</th>
-              <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">תיאור</th>
               <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-[160px]">פעולות</th>
             </tr>
           </thead>
@@ -203,13 +213,13 @@ function SalesApprovalWidget({ onRefresh }) {
                     {trx.branch_name}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500 truncate">
-                    {new Date(trx.transaction_date).toLocaleDateString('he-IL')}
+                    {trx.transaction_date ? new Date(trx.transaction_date).toLocaleDateString('he-IL') : '-'}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-500 truncate">
+                    {trx.expected_payment_date ? new Date(trx.expected_payment_date).toLocaleDateString('he-IL') : '-'}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-900 font-bold truncate">
-                    {formatCurrency(trx.value)}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-500 truncate" title={trx.description}>
-                    {trx.description || '-'}
+                    {formatCurrency(Math.abs(trx.value))}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium w-[160px]">
                     {approvingId === trx.id || rejectingId === trx.id ? (
@@ -255,35 +265,27 @@ function SalesApprovalWidget({ onRefresh }) {
                               <h5 className="font-semibold text-gray-700 mb-2">פרטי הלקוח והעסקה:</h5>
                               <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm pt-2 border-t border-gray-200">
                                 <div>
-                                  <span className="text-gray-600">סכום ללא מע"מ:</span> <span className="font-medium">{formatCurrency(trx.value)}</span>
+                                  <span className="text-gray-600">סכום ללא מע"מ:</span> <span className="font-medium">{formatCurrency(Math.abs(trx.value))}</span>
                                 </div>
                                 <div>
-                                  <span className="text-gray-600">מע"מ (18%):</span> <span className="font-medium">{formatCurrency(parseFloat(trx.value) * 0.18)}</span>
+                                  <span className="text-gray-600">מע"מ (18%):</span> <span className="font-medium">{formatCurrency(Math.abs(parseFloat(trx.value)) * 0.18)}</span>
                                 </div>
                                 <div>
-                                  <span className="text-gray-600">סכום כולל מע"מ:</span> <span className="font-bold text-blue-700">{formatCurrency(parseFloat(trx.value) * 1.18)}</span>
+                                  <span className="text-gray-600">סכום כולל מע"מ:</span> <span className="font-bold text-blue-700">{formatCurrency(Math.abs(parseFloat(trx.value)) * 1.18)}</span>
                                 </div>
                               </div>
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                  תנאי תשלום *
-                                </label>
-                                <select
+                                <Select
+                                  label="תנאי תשלום"
                                   name="payment_terms"
                                   value={approvalData.payment_terms}
                                   onChange={handleApprovalChange}
-                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  options={PAYMENT_TERMS_OPTIONS}
                                   required
-                                >
-                                  {PAYMENT_TERMS_OPTIONS.map(option => (
-                                    <option key={option.value} value={option.value}>
-                                      {option.label}
-                                    </option>
-                                  ))}
-                                </select>
+                                />
                                 <div className="mt-2 text-sm text-blue-700 bg-blue-50 p-2 rounded border border-blue-100">
                                   <span className="font-semibold">תאריך תשלום מחושב: </span>
                                   {calculateDueDate(trx.transaction_date, approvalData.payment_terms)?.toLocaleDateString('he-IL')}
@@ -291,16 +293,12 @@ function SalesApprovalWidget({ onRefresh }) {
                               </div>
 
                               <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                  מספר חשבונית *
-                                </label>
-                                <input
-                                  type="text"
+                                <Input
+                                  label="מספר חשבונית"
                                   name="invoice_number"
                                   value={approvalData.invoice_number}
                                   onChange={handleApprovalChange}
                                   placeholder="הזן מספר חשבונית (חובה)"
-                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                                   required
                                 />
                               </div>
@@ -309,9 +307,30 @@ function SalesApprovalWidget({ onRefresh }) {
                         ) : (
                           // Payment Request Approval (Simple Confirmation)
                           <div className="bg-white p-4 rounded border border-gray-200">
-                            <p className="text-gray-700 mb-2">
-                              האם ברצונך לאשר את דרישת התשלום לספק <strong>{trx.entity_name}</strong> בסך <strong>{formatCurrency(trx.value)}</strong>?
-                            </p>
+                            <div className="grid grid-cols-2 gap-4 mb-4">
+                              <div>
+                                <span className="text-gray-600 text-sm">ספק:</span>
+                                <p className="font-semibold">{trx.entity_name}</p>
+                              </div>
+                              <div>
+                                <span className="text-gray-600 text-sm">סכום:</span>
+                                <p className="font-semibold">{formatCurrency(Math.abs(trx.value))}</p>
+                              </div>
+                              <div>
+                                <span className="text-gray-600 text-sm">תאריך עסקה:</span>
+                                <p className="font-semibold">{trx.transaction_date ? new Date(trx.transaction_date).toLocaleDateString('he-IL') : '-'}</p>
+                              </div>
+                              <div>
+                                <span className="text-gray-600 text-sm">מועד תשלום צפוי:</span>
+                                <p className="font-semibold">{trx.expected_payment_date ? new Date(trx.expected_payment_date).toLocaleDateString('he-IL') : '-'}</p>
+                              </div>
+                              {trx.description && (
+                                <div className="col-span-2">
+                                  <span className="text-gray-600 text-sm">תיאור:</span>
+                                  <p className="font-semibold">{trx.description}</p>
+                                </div>
+                              )}
+                            </div>
                             <p className="text-gray-600 text-sm">
                               אישור הבקשה יהפוך אותה לסטטוס "פתוח" ויכניס אותה למעקב התשלומים.
                             </p>
@@ -345,15 +364,13 @@ function SalesApprovalWidget({ onRefresh }) {
                         <h4 className="font-semibold text-red-800 mb-2">דחיית בקשה</h4>
 
                         <div className="bg-white p-3 rounded border border-red-200">
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            סיבת הדחייה * <span className="text-red-600">(חובה)</span>
-                          </label>
-                          <textarea
+                          <Textarea
+                            label="סיבת הדחייה"
                             value={rejectionReason}
                             onChange={(e) => setRejectionReason(e.target.value)}
                             placeholder="נא לפרט את הסיבה לדחיית הבקשה..."
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 min-h-[100px]"
                             required
+                            error={!rejectionReason && "שדה חובה"}
                           />
                         </div>
 

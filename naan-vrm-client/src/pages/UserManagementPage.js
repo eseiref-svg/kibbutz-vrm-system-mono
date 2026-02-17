@@ -52,7 +52,8 @@ function UserManagementPage() {
       });
   };
 
-  const handleSearch = () => {
+  // Live Search Effect
+  useEffect(() => {
     if (!searchQuery.trim()) {
       setFilteredUsers(users);
       return;
@@ -69,6 +70,10 @@ function UserManagementPage() {
       return false;
     });
     setFilteredUsers(filtered);
+  }, [searchQuery, searchCriteria, users]); // Add dependencies for auto-run
+
+  const handleSearch = () => {
+    // Kept for Enter key or Button click compatibility, but logic is now in useEffect
   };
 
   const handleClearSearch = () => {
@@ -251,36 +256,43 @@ function UserManagementPage() {
             <>
               <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200 mb-6">
                 <h3 className="text-xl font-bold text-gray-800 mb-4 pb-2 border-b">חיפוש משתמשים</h3>
-                <div className="flex flex-col sm:flex-row gap-3 items-stretch">
-                  <Select
-                    value={searchCriteria}
-                    onChange={(e) => setSearchCriteria(e.target.value)}
-                    options={[
-                      { value: 'name', label: 'לפי שם' },
-                      { value: 'email', label: 'לפי אימייל' }
-                    ]}
-                    fullWidth={false}
-                    className="w-full sm:w-40"
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+                  <div className="sm:col-span-3">
+                    <Select
+                      label="סוג חיפוש"
+                      value={searchCriteria}
+                      onChange={(e) => setSearchCriteria(e.target.value)}
+                      options={[
+                        { value: 'name', label: 'לפי שם' },
+                        { value: 'email', label: 'לפי אימייל' }
+                      ]}
+                      fullWidth={true}
+                    />
+                  </div>
 
-                  <Input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder={searchCriteria === 'name' ? 'הקלד שם משתמש...' : 'הקלד אימייל...'}
-                    onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                    className="flex-grow w-full"
-                    showClearButton={true}
-                    onClear={handleClearSearch}
-                  />
+                  <div className="sm:col-span-7">
+                    <Input
+                      label="ערך לחיפוש"
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder={searchCriteria === 'name' ? 'הקלד שם משתמש...' : 'הקלד אימייל...'}
+                      onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                      showClearButton={true}
+                      onClear={handleClearSearch}
+                    />
+                  </div>
 
-                  <Button
-                    onClick={handleSearch}
-                    variant="primary"
-                    className="whitespace-nowrap w-full sm:w-auto"
-                  >
-                    חיפוש
-                  </Button>
+                  <div className="sm:col-span-2">
+                    <Button
+                      onClick={handleSearch}
+                      variant="primary"
+                      fullWidth={true}
+                      className="whitespace-nowrap"
+                    >
+                      חיפוש
+                    </Button>
+                  </div>
                 </div>
               </div>
 

@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import api from '../../api/axiosConfig';
 import { validatePhoneNumber, validateEmail, validateRequired } from '../../utils/validation';
 import { PAYMENT_TERMS_OPTIONS } from '../../utils/paymentTerms';
+import Input from '../shared/Input';
+import Select from '../shared/Select';
+import Button from '../shared/Button';
 
 function AddClientForm({ onClientAdded, initialData = null, onCancel }) {
   const [formData, setFormData] = useState({
@@ -113,122 +116,102 @@ function AddClientForm({ onClientAdded, initialData = null, onCancel }) {
       <form onSubmit={handleSubmit}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-gray-700 font-semibold mb-2">שם הלקוח *</label>
-            <input
-              type="text"
+            <Input
+              label="שם הלקוח"
               name="name"
               value={formData.name}
               onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
           </div>
 
           <div>
-            <label className="block text-gray-700 font-semibold mb-2">מספר לקוח</label>
-            <input
-              type="text"
+            <Input
+              label="מספר לקוח"
               name="client_number"
               value={formData.client_number}
               onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
           <div>
-            <label className="block text-gray-700 font-semibold mb-2">שם איש קשר *</label>
-            <input
-              type="text"
+            <Input
+              label="שם איש קשר"
               name="poc_name"
               value={formData.poc_name}
               onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
           </div>
 
           <div>
-            <label className="block text-gray-700 font-semibold mb-2">טלפון *</label>
-            <input
-              type="text"
+            <Input
+              label="טלפון"
               name="poc_phone"
               value={formData.poc_phone}
               onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
+              helperText="נייד (10 ספרות) או נייח (9 ספרות)"
             />
-            <p className="text-xs text-gray-500 mt-1">נייד (10 ספרות) או נייח (9 ספרות)</p>
           </div>
 
           <div>
-            <label className="block text-gray-700 font-semibold mb-2">אימייל</label>
-            <input
+            <Input
+              label="אימייל"
               type="email"
               name="poc_email"
               value={formData.poc_email}
               onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
           <div>
-            <label className="block text-gray-700 font-semibold mb-2">עיר</label>
-            <input
-              type="text"
+            <Input
+              label="עיר"
               name="city"
               value={formData.city}
               onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
           <div>
-            <label className="block text-gray-700 font-semibold mb-2">רחוב</label>
-            <input
-              type="text"
+            <Input
+              label="רחוב"
               name="street"
               value={formData.street}
               onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
           <div>
-            <label className="block text-gray-700 font-semibold mb-2">מיקוד</label>
-            <input
-              type="text"
+            <Input
+              label="מיקוד"
               name="postal_code"
               value={formData.postal_code}
               onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
           <div>
-            <label className="block text-gray-700 font-semibold mb-2">תנאי תשלום</label>
-            <select
+            <Select
+              label="תנאי תשלום"
               name="payment_terms"
               value={formData.payment_terms}
               onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              {PAYMENT_TERMS_OPTIONS.map(option => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+              options={PAYMENT_TERMS_OPTIONS}
+            />
           </div>
         </div>
 
         <div className="mt-6 flex justify-end gap-4">
-          <button
+          <Button
             type="submit"
             disabled={loading}
-            className="bg-blue-500 text-white hover:bg-blue-600 font-bold py-2 px-6 rounded-lg disabled:bg-gray-400"
+            variant="primary"
+            className="px-6"
           >
             {loading ? 'שומר...' : (initialData ? 'עדכן פרטים' : 'הוסף לקוח')}
-          </button>
+          </Button>
         </div>
       </form>
     </div>

@@ -32,7 +32,7 @@ function RecentOrdersTable({ transactions }) {
             <tr key={tx.transaction_id} className="border-b hover:bg-gray-50">
               <td className="py-3 px-4">{tx.supplier_name}</td>
               <td className="py-3 px-4">{new Date(tx.due_date).toLocaleDateString('he-IL')}</td>
-              <td className="py-3 px-4">{formatCurrency(tx.value)}</td>
+              <td className="py-3 px-4">{formatCurrency(Math.abs(tx.value))}</td>
               <td className={`py-3 px-4 ${getStatusStyle(tx.status)}`}>{tx.status}</td>
             </tr>
           ))}

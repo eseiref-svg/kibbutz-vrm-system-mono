@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import useDebounce from '../../hooks/useDebounce';
 import api from '../../api/axiosConfig';
 import CreateSaleForm from '../clients/CreateSaleForm';
 import BranchClientSearch from './BranchClientSearch';
@@ -14,6 +15,7 @@ function BranchClientManagement({ branchId, onSaleCreated }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedQuery = useDebounce(searchQuery, 500);
   const [searchCriteria, setSearchCriteria] = useState('name');
 
   const fetchClients = useCallback(async () => {
@@ -51,12 +53,22 @@ function BranchClientManagement({ branchId, onSaleCreated }) {
     fetchClients();
   }, [fetchClients]);
 
+  // Handle Search Trigger
+  useEffect(() => {
+    if (debouncedQuery.trim() || searchCriteria) {
+      handleSearch();
+    }
+  }, [debouncedQuery, searchCriteria]); // Trigger when these change state
+
   const handleSearch = async () => {
-    if (!searchQuery.trim()) {
+    if (!debouncedQuery.trim() && !searchQuery.trim()) { // Use either current or debounced if present
       // If search is empty, show all clients
       setClients(allClients);
       return;
     }
+
+    // Use debouncedQuery for the API call if triggered by effect, or searchQuery if triggered manually
+    const queryToUse = debouncedQuery || searchQuery;
 
     try {
       setLoading(true);
@@ -64,7 +76,7 @@ function BranchClientManagement({ branchId, onSaleCreated }) {
         params: {
           branchId,
           criteria: searchCriteria,
-          query: searchQuery.trim(),
+          query: queryToUse.trim(),
           limit: 1000
         }
       });

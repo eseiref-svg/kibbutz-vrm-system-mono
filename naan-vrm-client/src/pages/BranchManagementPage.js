@@ -12,6 +12,11 @@ function BranchManagementPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
+    // Search State
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchCriteria, setSearchCriteria] = useState('name');
+    const [filteredBranches, setFilteredBranches] = useState([]);
+
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [currentBranch, setCurrentBranch] = useState(null);
@@ -45,6 +50,35 @@ function BranchManagementPage() {
         fetchBranches();
         fetchUsers();
     }, []);
+
+    // Filter branches whenever query, criteria, or branches change
+    useEffect(() => {
+        if (!branches) return;
+
+        if (!searchQuery.trim()) {
+            setFilteredBranches(branches);
+            return;
+        }
+
+        const query = searchQuery.toLowerCase().trim();
+        const filtered = branches.filter(branch => {
+            if (searchCriteria === 'name') {
+                return branch.name?.toLowerCase().includes(query);
+            } else if (searchCriteria === 'manager') {
+                return branch.manager_name?.toLowerCase().includes(query);
+            }
+            return false;
+        });
+        setFilteredBranches(filtered);
+    }, [searchQuery, searchCriteria, branches]);
+
+    const handleSearch = () => {
+        // Search is handled by useEffect, but we keep this for Enter key or explicit click behavior if needed
+    };
+
+    const handleClearSearch = () => {
+        setSearchQuery('');
+    };
 
     const handleOpenModal = (branch = null) => {
         if (branch) {
@@ -127,12 +161,52 @@ function BranchManagementPage() {
                             />
                         </div>
                     ) : (
-                        <BranchTable
-                            branches={branches}
-                            onEdit={handleOpenModal}
-                            onStatusToggle={handleStatusToggle}
-                            onRowClick={setCurrentBranch}
-                        />
+                        <>
+                            <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200 mb-6">
+                                <h3 className="text-xl font-bold text-gray-800 mb-4 pb-2 border-b">חיפוש ענפים</h3>
+                                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+                                    <div className="sm:col-span-3">
+                                        <Select
+                                            label="סוג חיפוש"
+                                            value={searchCriteria}
+                                            onChange={(e) => setSearchCriteria(e.target.value)}
+                                            options={[
+                                                { value: 'name', label: 'לפי שם ענף' },
+                                                { value: 'manager', label: 'לפי מנהל אחראי' }
+                                            ]}
+                                            fullWidth={true}
+                                        />
+                                    </div>
+                                    <div className="sm:col-span-7">
+                                        <Input
+                                            label="ערך לחיפוש"
+                                            value={searchQuery}
+                                            onChange={(e) => setSearchQuery(e.target.value)}
+                                            placeholder={searchCriteria === 'name' ? 'הקלד שם ענף...' : 'הקלד שם מנהל...'}
+                                            showClearButton={true}
+                                            onClear={handleClearSearch}
+                                        />
+                                    </div>
+                                    <div className="sm:col-span-2">
+                                        <Button
+                                            variant="primary"
+                                            fullWidth={true}
+                                            onClick={handleSearch}
+                                            className="whitespace-nowrap"
+                                        >
+                                            חיפוש
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <BranchTable
+                                branches={filteredBranches}
+                                onEdit={handleOpenModal}
+                                onStatusToggle={handleStatusToggle}
+                                onRowClick={setCurrentBranch}
+                            />
+                        </>
                     )}
                 </>
             )}
