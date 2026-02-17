@@ -4767,6 +4767,29 @@ app.listen(port, () => {
   console.log(`Working directory: ${process.cwd()}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`Database: ${process.env.DATABASE_URL ? 'PRODUCTION (Railway)' : 'DEVELOPMENT (Local)'}`);
+
+  // DEBUG: Print directory structure to find build folder
+  const fs = require('fs');
+  const path = require('path');
+  console.log('--- DIRECTORY DEBUG ---');
+  try {
+    console.log('Current Dir:', fs.readdirSync(__dirname));
+    console.log('Parent Dir:', fs.readdirSync(path.join(__dirname, '..')));
+    if (fs.existsSync(path.join(__dirname, '../naan-vrm-client'))) {
+      console.log('Client Dir:', fs.readdirSync(path.join(__dirname, '../naan-vrm-client')));
+      if (fs.existsSync(path.join(__dirname, '../naan-vrm-client/build'))) {
+        console.log('Build Dir:', fs.readdirSync(path.join(__dirname, '../naan-vrm-client/build')));
+      } else {
+        console.log('Build Dir: NOT FOUND');
+      }
+    } else {
+      console.log('Client Dir: NOT FOUND');
+    }
+  } catch (e) {
+    console.log('Error reading dirs:', e.message);
+  }
+  console.log('-----------------------');
+
   console.log('===========================================');
 
   console.log('Starting payment monitoring service...');
