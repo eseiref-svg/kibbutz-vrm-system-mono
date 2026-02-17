@@ -538,9 +538,18 @@ app.post('/api/users/reset-password', async (req, res) => {
 });
 
 
+// ============================================
+// SERVE STATIC ASSETS (Before Auth)
+// ============================================
+if (process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'development') {
+  app.use(express.static(path.join(__dirname, '../naan-vrm-client/build')));
+}
+
 // --- Protected Routes ---
-// ALL routes below this line will use the 'auth' middleware to ensure the user is logged in
-app.use(auth);
+// Apply auth middleware ONLY to API routes that are not public
+// Note: Public API routes are defined above this line, so they are safe.
+// We scope this to /api so it doesn't block the frontend catch-all.
+app.use('/api', auth);
 
 app.get('/api/supplier-fields', async (req, res) => {
   try {
@@ -4738,13 +4747,9 @@ app.get('/api/branches/:id/transactions', async (req, res) => {
 });
 
 // ============================================
-// SERVE STATIC ASSETS IN PRODUCTION
+// Catch-All for Frontend Routing (Must be last)
 // ============================================
-// Serve static assets if in production
 if (process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'development') {
-  // Set static folder
-  app.use(express.static(path.join(__dirname, '../naan-vrm-client/build')));
-
   app.get(/.*/, (req, res) => {
     res.sendFile(path.resolve(__dirname, '../naan-vrm-client', 'build', 'index.html'));
   });
