@@ -4745,7 +4745,7 @@ if (process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'developme
   // Set static folder
   app.use(express.static(path.join(__dirname, '../naan-vrm-client/build')));
 
-  app.get('*', (req, res) => {
+  app.get(/.*/, (req, res) => {
     res.sendFile(path.resolve(__dirname, '../naan-vrm-client', 'build', 'index.html'));
   });
 }
