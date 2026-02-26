@@ -169,44 +169,7 @@ app.put('/api/suppliers/:id', async (req, res) => {
 // ... (existing system settings code) ...
 
 // ... (in POST /api/clients) ...
-app.post('/api/clients', async (req, res) => {
-  const client = await db.pool.connect();
-  try {
-    const { name, poc_name, poc_phone, poc_email, city, street_name, house_no, zip_code, payment_terms } = req.body;
-
-    if (!name || !poc_name || !poc_phone) {
-      return res.status(400).json({ message: 'שם הלקוח, שם איש הקשר וטלפון הם שדות חובה' });
-    }
-
-    await client.query('BEGIN');
-
-    // Insert address using helper
-    const addressId = await addressHelper.createAddress(client, {
-      city: city || 'לא צוין',
-      street_name: street_name || 'לא צוין',
-      house_no: house_no || 'לא צוין',
-      zip_code: zip_code || '0000000',
-      phone_no: poc_phone,
-      additional: ''
-    });
-
-    // Insert client
-    const result = await client.query(
-      `INSERT INTO client (name, address_id, poc_name, poc_phone, poc_email, is_active, payment_terms) 
-       VALUES ($1, $2, $3, $4, $5, TRUE, $6) RETURNING *`,
-      [name, addressId, poc_name, poc_phone, poc_email || null, payment_terms || 'immediate']
-    );
-
-    await client.query('COMMIT');
-    res.status(201).json(result.rows[0]);
-  } catch (err) {
-    await client.query('ROLLBACK');
-    console.error(err.message);
-    res.status(500).send('Server Error');
-  } finally {
-    client.release();
-  }
-});
+// Duplicate POST /api/clients removed. See line 2809.
 
 // Update client
 app.put('/api/clients/:id', async (req, res) => {
@@ -2642,7 +2605,7 @@ app.get('/api/clients/search', async (req, res) => {
     const { criteria, query, branchId, status = 'active', page, limit } = req.query;
 
     // Logic Update: Branch column should show the branch that REQUESTED the client.
-    // If no request found (manual creation), show "Treasurer" (גזברות).
+    // If no request found (manual creation), show "Treasurer".
     // Note: We still probably want to filter by branch based on Sales + Requests if 'branchId' is present (Branch Manager View),
     // but the DISPLAY column 'branch_names' should be strict about Origin.
 
@@ -2706,9 +2669,9 @@ app.get('/api/clients/search', async (req, res) => {
         params.push(`%${query}%`);
         paramIndex++;
       } else if (criteria === 'branch') {
-        // Search by the DISPLAYED branch name (Requesting branch or 'גזברות')
+        // Search by the DISPLAYED branch name (Requesting branch or Treasurer)
         // This is tricky with COALESCE in WHERE.
-        // If query is 'גזברות', we want those with NULL b_req.name.
+        // If query is 'Treasurer' (Hebrew string below), we want those with NULL b_req.name.
         // If query is 'Refet', we want matches.
 
         filters.push(`(COALESCE(b_req.name, 'גזברות') ILIKE $${paramIndex})`);
@@ -2809,7 +2772,11 @@ app.get('/api/clients/:id/sales', async (req, res) => {
 app.post('/api/clients', async (req, res) => {
   const client = await db.pool.connect();
   try {
-    const { name, poc_name, poc_phone, poc_email, city, street_name, house_no, zip_code, payment_terms, client_number } = req.body;
+    const {
+      name, poc_name, poc_phone, poc_email,
+      city, street_name, house_no, zip_code,
+      payment_terms, client_number, branch_id
+    } = req.body;
 
     if (!name || !poc_name || !poc_phone) {
       return res.status(400).json({ message: 'שם הלקוח, שם איש הקשר וטלפון הם שדות חובה' });
@@ -2828,12 +2795,31 @@ app.post('/api/clients', async (req, res) => {
     });
 
     // Insert client
-    // Note: client_number is optional but good to have if provided manually
     const result = await client.query(
       `INSERT INTO client (name, address_id, poc_name, poc_phone, poc_email, is_active, payment_terms, client_number) 
        VALUES ($1, $2, $3, $4, $5, TRUE, $6, $7) RETURNING *`,
       [name, addressId, poc_name, poc_phone, poc_email || null, payment_terms || 'immediate', client_number || null]
     );
+    const newClientId = result.rows[0].client_id;
+
+    // Handle Branch Assignment via Client Request
+    if (branch_id) {
+      const requested_by = req.user.id; // Assuming auth middleware populates this
+
+      // Auto-create approved request to link client to branch
+      await client.query(`
+        INSERT INTO client_request (
+          branch_id, requested_by_user_id, client_id, client_name, 
+          poc_name, poc_phone, poc_email, city, street_name, house_no, zip_code, 
+          status, reviewed_by_user_id, review_notes, reviewed_at, approved_client_id
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 
+          'approved', $2, 'Auto-assigned by Treasurer', NOW(), $3
+        )
+      `, [
+        branch_id, requested_by, newClientId, name,
+        poc_name, poc_phone, poc_email || null, city || null, street_name || null, house_no || null, zip_code || null
+      ]);
+    }
 
     await client.query('COMMIT');
     res.status(201).json(result.rows[0]);

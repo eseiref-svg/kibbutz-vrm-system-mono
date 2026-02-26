@@ -1,5 +1,27 @@
-# Dependencies - אנו מתעלמים מכל תיקיות node_modules
+# Dependencies
 **/node_modules/
+
+# Development & diagnostic scripts (root level)
+chunk_eo_class.js
+chunk_main.js
+chunk_main_2.js
+chunk_qdt_fn.js
+search_main.js
+search_main.py
+check_update_status.js
+antigravity_update_research.md
+demo_script.md
+presentation_structure.md
+system_description.md
+
+# Server development scripts and diagnostics
+naan-vrm-server/check_balance_cols.js
+naan-vrm-server/check_branch_cols.js
+naan-vrm-server/check_branch_schema.js
+naan-vrm-server/debug_log.txt
+naan-vrm-server/diagnosis_output.txt
+naan-vrm-server/scripts/
+
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

@@ -91,7 +91,12 @@ function UserManagementPage() {
       setCurrentUser(user);
     } else {
       setIsEditing(false);
-      setCurrentUser({ first_name: '', surname: '', email: '', phone_no: '', password: '', role: 'branch_manager', status: 'active' });
+      // Default to "Create New Branch" for new users
+      setCurrentUser({
+        first_name: '', surname: '', email: '', phone_no: '', password: '',
+        role: 'branch_manager', status: 'active',
+        branch_id: 'new'
+      });
     }
     setValidationErrors({});
     setIsModalOpen(true);
@@ -141,6 +146,14 @@ function UserManagementPage() {
       const passwordValidation = validatePassword(currentUser.password);
       if (!passwordValidation.isValid) {
         errors.password = passwordValidation.error;
+      }
+    }
+
+    // Branch validation
+    if ((currentUser.role === 'branch_manager' || currentUser.role === 'community_manager') && currentUser.branch_id === 'new') {
+      const branchValidation = validateRequired(currentUser.new_branch_name, 'שם הענף החדש');
+      if (!branchValidation.isValid) {
+        errors.new_branch_name = branchValidation.error;
       }
     }
 
@@ -346,6 +359,7 @@ function UserManagementPage() {
               required
               disabled={isEditing}
               error={validationErrors.email}
+              autoComplete="off"
             />
             <Input
               name="phone_no"
@@ -365,6 +379,7 @@ function UserManagementPage() {
                 onChange={handleChange}
                 required
                 error={validationErrors.password}
+                autoComplete="new-password"
               />
             )}
             <Select
@@ -384,15 +399,14 @@ function UserManagementPage() {
                 <Select
                   name="branch_id"
                   label=""
-                  value={currentUser.branch_id || ''}
+                  value={currentUser.branch_id || 'new'}
                   onChange={(e) => {
                     const val = e.target.value;
                     setCurrentUser({ ...currentUser, branch_id: val, new_branch_name: val === 'new' ? '' : undefined });
                   }}
                   options={[
-                    { value: '', label: 'ללא שיוך' },
-                    ...branches.map(b => ({ value: b.branch_id, label: b.name })),
-                    { value: 'new', label: '+ צור ענף חדש...' }
+                    { value: 'new', label: '+ צור ענף חדש...' },
+                    ...branches.map(b => ({ value: b.branch_id, label: b.name }))
                   ]}
                 />
 
@@ -404,6 +418,8 @@ function UserManagementPage() {
                       value={currentUser.new_branch_name || ''}
                       onChange={handleChange}
                       placeholder="הזן שם ענף..."
+                      required
+                      error={validationErrors.new_branch_name}
                     />
                     <div className="flex items-center mt-2">
                       <input
@@ -413,7 +429,7 @@ function UserManagementPage() {
                         onChange={(e) => setCurrentUser({ ...currentUser, is_business_branch: e.target.checked })}
                         className="ml-2"
                       />
-                      <label htmlFor="is_business_branch" className="text-sm text-gray-700">ענף עסקי (Business)</label>
+                      <label htmlFor="is_business_branch" className="text-sm text-gray-700">ענף עסקי</label>
                     </div>
                   </div>
                 )}

@@ -13,7 +13,7 @@ function BranchSupplierSearch({ query, setQuery, criteria, setCriteria, onSearch
       return 'הקלד תג... (למשל: food, travel)';
     }
     if (criteria === 'id') {
-      return 'הקלד ערך לחיפוש...'; // Or 'הקלד ח.פ...'
+      return 'הקלד ערך לחיפוש...'; // Or 'Type company ID...'
     }
     return 'הקלד ערך לחיפוש...';
   };

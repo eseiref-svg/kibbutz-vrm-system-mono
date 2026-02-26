@@ -11,7 +11,7 @@
 function getCreditDays(paymentTerms) {
     if (!paymentTerms || paymentTerms === 'immediate' || paymentTerms === 'מיידי') return 0;
 
-    // Format: current_X (e.g., current_30) OR Hebrew: שוטף+X / שוטף + X
+    // Format: current_X (e.g., current_30) OR equivalent format current+X / current + X
     const match = paymentTerms.match(/(?:current_|שוטף\s*\+)(\d+)/);
     if (match && match[1]) {
         return parseInt(match[1], 10);

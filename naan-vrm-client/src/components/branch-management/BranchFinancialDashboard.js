@@ -6,7 +6,7 @@ const formatFinancial = (amount) => {
     const val = parseFloat(amount || 0);
     const absVal = Math.abs(val).toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-    // If negative, wrap in ( ) with ₪ on the left
+    // If negative, wrap in ( ) with symbol on the left
     if (val < 0) {
         return `₪(${absVal})`;
     }

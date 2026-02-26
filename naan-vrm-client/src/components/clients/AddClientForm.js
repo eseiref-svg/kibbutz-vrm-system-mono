@@ -7,6 +7,7 @@ import Select from '../shared/Select';
 import Button from '../shared/Button';
 
 function AddClientForm({ onClientAdded, initialData = null, onCancel }) {
+  const [branches, setBranches] = useState([]);
   const [formData, setFormData] = useState({
     name: initialData?.name || '',
     client_number: initialData?.client_number || '', // Added client_number
@@ -16,10 +17,24 @@ function AddClientForm({ onClientAdded, initialData = null, onCancel }) {
     city: initialData?.city || '',
     street: initialData?.street_name || '', // Note: DB returns street_name
     postal_code: initialData?.zip_code || '', // Note: DB returns zip_code
-    payment_terms: initialData?.payment_terms || 'immediate'
+    payment_terms: initialData?.payment_terms || 'immediate',
+    branch_id: 'no_branch' // Default to 'no_branch' to avoid placeholder
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Fetch branches on mount
+  React.useEffect(() => {
+    const fetchBranches = async () => {
+      try {
+        const response = await api.get('/branches');
+        setBranches(response.data);
+      } catch (err) {
+        console.error('Error fetching branches:', err);
+      }
+    };
+    fetchBranches();
+  }, []);
 
   const handleChange = (e) => {
     setFormData({
@@ -72,8 +87,8 @@ function AddClientForm({ onClientAdded, initialData = null, onCancel }) {
     };
     // Ensure client_number is sent even if empty string (will be handled as null/empty by backend if logic permits, or we should check)
     // Backend `client_number || null` logic handles empty string as valid string usually, let's explicit null if empty
-    if (!payload.client_number) delete payload.client_number; // Or send as is if backend handles it. Backend: client_number || null. 
-    // If client_number is '' (empty string), JS `'' || null` is `null`. Correct.
+    if (!payload.client_number) delete payload.client_number;
+    if (payload.branch_id === 'no_branch' || !payload.branch_id) delete payload.branch_id; // Don't send if no branch selected
 
     try {
       if (initialData) {
@@ -95,7 +110,8 @@ function AddClientForm({ onClientAdded, initialData = null, onCancel }) {
           city: '',
           street: '',
           postal_code: '',
-          payment_terms: 'immediate'
+          payment_terms: 'immediate',
+          branch_id: 'no_branch'
         });
       }
     } catch (err) {
@@ -199,6 +215,19 @@ function AddClientForm({ onClientAdded, initialData = null, onCancel }) {
               value={formData.payment_terms}
               onChange={handleChange}
               options={PAYMENT_TERMS_OPTIONS}
+            />
+          </div>
+
+          <div>
+            <Select
+              label="שיוך לענף (אופציונלי)"
+              name="branch_id"
+              value={formData.branch_id}
+              onChange={handleChange}
+              options={[
+                { label: 'גזברות (ללא שיוך)', value: 'no_branch' },
+                ...branches.filter(b => b.is_active !== false).map(b => ({ label: b.name, value: b.branch_id }))
+              ]}
             />
           </div>
         </div>

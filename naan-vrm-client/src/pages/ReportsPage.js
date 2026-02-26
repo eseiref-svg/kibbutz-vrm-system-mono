@@ -68,28 +68,37 @@ function ReportsPage() {
   const exportPaymentToCSV = () => {
     if (!paymentReportData || paymentReportData.length === 0) return;
 
-    const headers = activeReport === 'overdue-by-branch'
-      ? ['ענף', 'הכנסות באיחור', 'מספר ח-ן הכנסות', 'הוצאות באיחור', 'מספר ח-ן הוצאות']
-      : ['ספק', 'סכום ממוצע', 'זמן תשלום ממוצע', 'אחוז איחורים'];
+    let headers = [];
+    let dataMapper = null;
+
+    if (activeReport === 'branch-profitability') {
+      headers = ['ענף', 'סה"כ הכנסות', 'סה"כ הוצאות', 'רווח/הפסד'];
+      dataMapper = (row) => [
+        row.branch_name,
+        row.total_income,
+        row.total_expense,
+        row.profit
+      ];
+    } else if (activeReport === 'client-patterns') {
+      headers = ['לקוח', 'ענף משייך', 'מספר עסקאות', 'אחוז איחורים'];
+      dataMapper = (row) => [
+        row.client_name,
+        row.branch_name,
+        row.total_transactions,
+        `${row.late_percentage}%`
+      ];
+    } else {
+      return;
+    }
 
     const csvContent = [
       headers.join(','),
-      ...paymentReportData.map(row => {
-        if (activeReport === 'overdue-by-branch') {
-          return [
-            row.branch_name,
-            row.overdue_income || 0,
-            row.count_income || 0,
-            row.overdue_expense || 0,
-            row.count_expense || 0
-          ].join(',');
-        } else {
-          return [row.supplier_name, row.avg_amount, row.avg_days, row.late_percentage].join(',');
-        }
-      })
+      ...paymentReportData.map(row => dataMapper(row).join(','))
     ].join('\n');
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    // Add Byte Order Mark (BOM) for Excel Hebrew compatibility
+    const bom = '\uFEFF';
+    const blob = new Blob([bom + csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     link.download = `payment_report_${activeReport}_${new Date().toISOString().split('T')[0]}.csv`;
@@ -329,12 +338,15 @@ function ReportsPage() {
           <h2 className="text-2xl md:text-3xl font-bold text-gray-800">
             דוחות תשלומים
           </h2>
-          <button
-            onClick={exportPaymentToCSV}
-            className="w-full md:w-auto px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors font-medium"
-          >
-            ייצוא ל-CSV
-          </button>
+          <div className="w-full md:w-auto">
+            <Button
+              onClick={exportPaymentToCSV}
+              variant="success"
+              className="w-full md:w-auto"
+            >
+              ייצוא ל-CSV
+            </Button>
+          </div>
         </div>
 
         {/* Report Selection */}

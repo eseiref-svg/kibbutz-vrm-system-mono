@@ -24,8 +24,8 @@ export const formatCurrency = (amount) => {
 
     // Construct result with symbol on the left
     // Using unicode Left-To-Right Mark (\u200E) can help in mixed RTL contexts if needed, 
-    // but usually "₪" + number works if flow is managed.
-    // We place ₪ immediately before the number.
+    // but usually Currency Symbol + number works if flow is managed.
+    // We place the symbol immediately before the number.
 
     if (num < 0) {
         return `₪(${formattedNumber})`;
