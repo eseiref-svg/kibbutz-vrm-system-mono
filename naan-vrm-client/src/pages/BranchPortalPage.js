@@ -15,6 +15,7 @@ import BranchClientManagement from '../components/branch-portal/BranchClientMana
 import TransactionsWidget from '../components/branch-portal/TransactionsWidget';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import logoImg from '../assets/logo.png';
 
 function BranchPortalPage() {
   const { user } = useAuth();
@@ -161,7 +162,7 @@ function BranchPortalPage() {
     <div>
       <div className="flex justify-between items-center mb-6 pb-4 border-b-2 border-gray-200">
         <div className="flex items-center gap-4">
-          <img src="/favicon.png" alt="לוגו המערכת" className="h-12 w-auto object-contain hover:opacity-90 transition-opacity" />
+          <img src={logoImg} alt="לוגו המערכת" className="h-12 w-auto object-contain hover:opacity-90 transition-opacity" />
           <h2 className="text-3xl font-bold text-gray-800">
             פורטל מנהל ענף {branch ? `- ${branch.name}` : ''}
           </h2>

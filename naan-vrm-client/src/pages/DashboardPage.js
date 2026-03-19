@@ -16,6 +16,7 @@ import { useNotifications } from '../context/NotificationContext';
 import { useAuth } from '../context/AuthContext';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import logoImg from '../assets/logo.png';
 
 function DashboardPage() {
   const { user } = useAuth();
@@ -160,7 +161,7 @@ function DashboardPage() {
     <div>
       <div className="flex flex-col md:flex-row justify-between items-center mb-6 pb-4 border-b-2 border-gray-200 gap-4">
         <div className="flex items-center gap-4">
-          <img src="/favicon.png" alt="לוגו המערכת" className="h-12 w-auto object-contain hover:opacity-90 transition-opacity" />
+          <img src={logoImg} alt="לוגו המערכת" className="h-12 w-auto object-contain hover:opacity-90 transition-opacity" />
           <h2 className="text-2xl md:text-3xl font-bold text-gray-800 text-center md:text-right">
             {isCommunityManager ? 'לוח מחוונים - מנהל קהילה' : 'לוח מחוונים - גזבר/ית'}
           </h2>
